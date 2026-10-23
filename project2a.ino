@@ -73,7 +73,7 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
     firstcomp = true;
     oLCD.print("DUTY CYCLE", CENTER, 10);
     oLCD.setBackColor(0x0000);
-    oLCD.printNumI(keypressed.toInt(),CENTER,24,0,' ');
+    oLCD.print("keypressed",CENTER,24);
     oLCD.setBackColor(RCB_PURPLE);
     oLCD.print("PRESS", CENTER, 38);
     oLCD.print("<RETURN>", CENTER, 52);
