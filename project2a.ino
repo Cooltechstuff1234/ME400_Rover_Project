@@ -6,6 +6,17 @@
 #define RCB_WHITE 0xFFFF
 #define RCB_BLACK 0x0000
 #define RCB_PURPLE      0x780F
+
+// B
+const int pwmFrequency = 496;
+const int pwmResolution = 8;
+const int maxDutyCycle = (int)pow(2, pwmResolution) - 1;
+
+// B
+double rightEncoderCount;
+double leftEncoderCount;
+double counttotarget;
+
 //
 //  Create an instance of the lcdhelper class named oLCD
 //
@@ -70,15 +81,44 @@ void clearText(int32_t x, int32_t y, int32_t width, uint16_t color)
 //
 void Option1(char optionstate, char keypressed, bool initdisplay)
 {
-    firstcomp = true;
-    oLCD.print("DUTY CYCLE", CENTER, 10);
-    oLCD.setBackColor(0x0000);
-    oLCD.print("keypressed",CENTER,24);
-    oLCD.setBackColor(RCB_PURPLE);
-    oLCD.print("PRESS", CENTER, 38);
-    oLCD.print("<RETURN>", CENTER, 52);
-    oLCD.print("WHEN", CENTER, 66);
-    oLCD.print("READY", CENTER, 80);
+firstcomp = false;
+    char text[20];
+    static String aval = "";
+
+    oLCD.LCDInitialize(PORTRAIT, initdisplay);
+
+    oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+    sprintf(text, "DUTY CYCLE");
+    oLCD.print(text, CENTER, 15);
+    oLCD.print("PRESS", CENTER, 48);
+    oLCD.print("<RETURN>", CENTER, 68);
+    oLCD.print("WHEN", CENTER, 88);
+    oLCD.print("READY", CENTER, 108);
+
+    if (optionstate == 'A' && keypressed == ' ')
+    {
+        aval = "";
+        clearText(CENTER, 32, 20, RCB_BLACK);
+    }
+    else if (optionstate == 'A' && keypressed != ' ')
+    {
+        aval = aval + keypressed;
+        clearText(CENTER, 32, 20, RCB_BLACK);
+        oLCD.setBackColor(RCB_BLACK);
+        oLCD.printNumI(aval.toInt(), CENTER, 32, 3, ' ');
+    }
+    else
+    {
+        leftEncoderCount = 0;
+        rightEncoderCount = 0;
+        digitalWrite(LeftMotorPPin, HIGH);
+        ledcWrite(PWMLeft, (float)aval.toInt() * maxDutyCycle / 100.0);
+
+        /*while (leftEncoderCount < counttotarget)
+        {
+
+        }*/
+    }
 
 }
 //
