@@ -81,9 +81,10 @@ void clearText(int32_t x, int32_t y, int32_t width, uint16_t color)
 //
 void Option1(char optionstate, char keypressed, bool initdisplay)
 {
-firstcomp = false;
+    firstcomp = false;
     char text[20];
     static String aval = "";
+    char lastkeypressed;
 
     oLCD.LCDInitialize(PORTRAIT, initdisplay);
 
@@ -99,15 +100,48 @@ firstcomp = false;
     {
         aval = "";
         clearText(CENTER, 32, 20, RCB_BLACK);
+        Serial.println("help");
+    }
+    else if (keypressed == oIR.TranslateKey(KEY_BACK))
+    {
+        int change = (aval.toDouble() / 10);
+        clearText(CENTER, 32, 20, RCB_BLACK);
+        oLCD.setBackColor(RCB_BLACK);
+        oLCD.printNumI(change, CENTER, 32, 3, ' ');
+        aval = String(change);
     }
     else if (optionstate == 'A' && keypressed != ' ')
     {
-        aval = aval + keypressed;
+        if (aval.length() < 2)
+        {
+            if (aval == "" && keypressed != oIR.TranslateKey(KEY_0) && keypressed != oIR.TranslateKey(KEY_1) && keypressed != oIR.TranslateKey(KEY_2) && keypressed != oIR.TranslateKey(KEY_3) && keypressed != oIR.TranslateKey(KEY_8) && keypressed != oIR.TranslateKey(KEY_9))
+            {
+
+                aval = aval + keypressed;
+                clearText(CENTER, 32, 20, RCB_BLACK);
+                oLCD.setBackColor(RCB_BLACK);
+                oLCD.printNumI(aval.toInt(), CENTER, 32, 3, ' ');
+            }
+            else if (aval == "0" && keypressed != oIR.TranslateKey(KEY_0) && keypressed != oIR.TranslateKey(KEY_1) && keypressed != oIR.TranslateKey(KEY_2) && keypressed != oIR.TranslateKey(KEY_3) && keypressed != oIR.TranslateKey(KEY_8) && keypressed != oIR.TranslateKey(KEY_9))
+            {
+                aval = aval + keypressed;
+                clearText(CENTER, 32, 20, RCB_BLACK);
+                oLCD.setBackColor(RCB_BLACK);
+                oLCD.printNumI(aval.toInt(), CENTER, 32, 3, ' ');
+            }
+            else if (aval != "" && aval != "0")
+            {
+                aval = aval + keypressed;
+                clearText(CENTER, 32, 20, RCB_BLACK);
+                oLCD.setBackColor(RCB_BLACK);
+                oLCD.printNumI(aval.toInt(), CENTER, 32, 3, ' ');
+            }
+        }
         clearText(CENTER, 32, 20, RCB_BLACK);
         oLCD.setBackColor(RCB_BLACK);
         oLCD.printNumI(aval.toInt(), CENTER, 32, 3, ' ');
     }
-    else
+    else if (optionstate == 'B')
     {
         leftEncoderCount = 0;
         rightEncoderCount = 0;
@@ -119,7 +153,6 @@ firstcomp = false;
 
         }*/
     }
-
 }
 //
 //  Option2 code
