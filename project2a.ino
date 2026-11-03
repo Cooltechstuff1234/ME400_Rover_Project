@@ -110,6 +110,12 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
         oLCD.printNumI(change, CENTER, 32, 3, ' ');
         aval = String(change);
     }
+    else if (optionstate == 'B' && aval.toInt() <= 40 || optionstate == 'B' && aval.toInt() >= 70)
+    {
+        clearText(CENTER, 32, 20, RCB_BLACK);
+        oLCD.setBackColor(RCB_BLACK);
+        oLCD.printNumI(aval.toInt(), CENTER, 32, 3, ' ');
+    }
     else if (optionstate == 'A' && keypressed != ' ')
     {
         if (aval.length() < 2)
@@ -153,7 +159,6 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
 
         }*/
     }
-}
 //
 //  Option2 code
 //
