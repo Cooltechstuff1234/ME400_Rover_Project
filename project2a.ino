@@ -158,9 +158,11 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
     {
 leftEncoderCount = 0;
         rightEncoderCount = 0;
-        digitalWrite(LeftMotorPPin, HIGH);
+        digitalWrite(LeftMotorPPin, LOW);
+        digitalWrite(LeftMotorEPin, HIGH);
         ledcWrite(PWMLeft, (float)aval.toInt() * maxDutyCycle / 100.0);
         digitalWrite(RightMotorPPin, HIGH);
+        digitalWrite(RightMotorEPin, HIGH);
         ledcWrite(PWMRight, (float)aval.toInt() * maxDutyCycle / 100.0);
         int duty = aval.toInt();
         while (leftEncoderCount < counttotarget || rightEncoderCount < counttotarget)
@@ -181,20 +183,35 @@ leftEncoderCount = 0;
             error = leftEncoderCount - rightEncoderCount;
             if (duty < 80 && duty > 20)
             {
-                if (timerR - timerL < 100 && error < 0)
+                if (timerR - timerL < 2 && error < 0)
                 {
                     duty++;
                 }
-                else if (timerR - timerL < 100 && error > 0)
+                else if (timerR - timerL < 2 && error > 0)
                 {
                     duty--;
                 }
             }
-            if (oIR.GetKeyPressed() == oIR.TranslateKey(KEY_POWER))
+            if (oIR.GetKeyPressed() == KEY_POWER)
             {
                 oLCD.printNumI(676967, CENTER, 32, 3, ' ');
                 break;
             }
+            oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+            oLCD.print("RIGHT DUTY CYCLE", CENTER, 8);
+            oLCD.printNumI(duty, CENTER, 28, 3, ' ');
+            oLCD.print("LEFT COUNT", CENTER, 48);
+            oLCD.printNumI(leftEncoderCount, CENTER, 68, 5, ' ');
+            oLCD.print("RIGHT COUNT", CENTER, 88);
+            oLCD.printNumI(rightEncoderCount, CENTER, 108, 5, ' ');
+            oLCD.print("ERROR", CENTER, 128);
+            oLCD.printNumI(error, CENTER, 148, 3, ' ');
+            delay(1000);
+        }
+        digitalWrite(LeftMotorPPin, LOW);
+        digitalWrite(LeftMotorEPin, LOW);
+        digitalWrite(RightMotorPPin, LOW);
+        digitalWrite(RightMotorEPin, LOW);
         }
     }
 //
