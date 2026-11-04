@@ -162,12 +162,14 @@ leftEncoderCount = 0;
         ledcWrite(PWMLeft, (float)aval.toInt() * maxDutyCycle / 100.0);
         digitalWrite(RightMotorPPin, HIGH);
         ledcWrite(PWMRight, (float)aval.toInt() * maxDutyCycle / 100.0);
+        int duty = aval.toInt();
         while (leftEncoderCount < counttotarget || rightEncoderCount < counttotarget)
         {
-            int duty = aval.toInt();
+            oLCD.printNumI(67, CENTER, 54, 3, ' ');
             ledcWrite(PWMRight, duty * maxDutyCycle / 100.0);
             if (digitalRead(LeftOutputPin) == LOW)
             {
+                oLCD.printNumI(420, CENTER, 32, 3, ' ');
                 leftEncoderCount++;
                 timerL = millis();
             }
@@ -188,7 +190,9 @@ leftEncoderCount = 0;
                     duty--;
                 }
             }
-            if (keypressed == oIR.TranslateKey(KEY_POWER)){
+            if (oIR.GetKeyPressed() == oIR.TranslateKey(KEY_POWER))
+            {
+                oLCD.printNumI(676967, CENTER, 32, 3, ' ');
                 break;
             }
         }
