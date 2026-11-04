@@ -149,15 +149,42 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
     }
     else if (optionstate == 'B')
     {
-        leftEncoderCount = 0;
+leftEncoderCount = 0;
         rightEncoderCount = 0;
         digitalWrite(LeftMotorPPin, HIGH);
         ledcWrite(PWMLeft, (float)aval.toInt() * maxDutyCycle / 100.0);
-
-        /*while (leftEncoderCount < counttotarget)
+        digitalWrite(RightMotorPPin, HIGH);
+        ledcWrite(PWMRight, (float)aval.toInt() * maxDutyCycle / 100.0);
+        while (leftEncoderCount < counttotarget || rightEncoderCount < counttotarget)
         {
-
-        }*/
+            int duty = aval.toInt();
+            ledcWrite(PWMRight, duty * maxDutyCycle / 100.0);
+            if (digitalRead(LeftOutputPin) == LOW)
+            {
+                leftEncoderCount++;
+                timerL = milis();
+            }
+            if (digitalRead(RightOutputPin) == LOW)
+            {
+                rightEncoderCount++;
+                timerR = milis();
+            }
+            error = leftEncoderCount - rightEncoderCount;
+            if (duty < 80 && duty > 20)
+            {
+                if (timerR - timerL < 100 && error < 0)
+                {
+                    duty++;
+                }
+                else if (timerR - timerL < 100 && error > 0)
+                {
+                    duty--;
+                }
+            }
+            if (keypressed == oIR.TranslateKey(KEY_POWER)){
+                break;
+            }
+        }
     }
 //
 //  Option2 code
