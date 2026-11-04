@@ -15,7 +15,15 @@ const int maxDutyCycle = (int)pow(2, pwmResolution) - 1;
 // B
 double rightEncoderCount;
 double leftEncoderCount;
-double counttotarget;
+double wheelDiameter = 65.31; // mm
+double countsPerRevolution = 20;
+double wheelCircumference = (wheelDiameter) * (3.14159);
+double revolutionstotarget = 100 / (wheelCircumference / 10);
+double counttotarget = countsPerRevolution * revolutionstotarget;
+double error;
+
+double timerL;
+double timerR;
 
 //
 //  Create an instance of the lcdhelper class named oLCD
@@ -84,7 +92,6 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
     firstcomp = false;
     char text[20];
     static String aval = "";
-    char lastkeypressed;
 
     oLCD.LCDInitialize(PORTRAIT, initdisplay);
 
@@ -162,12 +169,12 @@ leftEncoderCount = 0;
             if (digitalRead(LeftOutputPin) == LOW)
             {
                 leftEncoderCount++;
-                timerL = milis();
+                timerL = millis();
             }
             if (digitalRead(RightOutputPin) == LOW)
             {
                 rightEncoderCount++;
-                timerR = milis();
+                timerR = millis();
             }
             error = leftEncoderCount - rightEncoderCount;
             if (duty < 80 && duty > 20)
