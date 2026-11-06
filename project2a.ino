@@ -194,9 +194,9 @@ leftEncoderCount = 0;
             }
             if (oIR.GetKeyPressed() == KEY_POWER)
             {
-                oLCD.printNumI(676967, CENTER, 32, 3, ' ');
                 break;
             }
+            oLCD.LCDInitialize(PORTRAIT, initdisplay);
             oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
             oLCD.print("RIGHT DUTY CYCLE", CENTER, 8);
             oLCD.printNumI(duty, CENTER, 28, 3, ' ');
