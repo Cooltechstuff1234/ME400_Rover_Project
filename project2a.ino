@@ -227,6 +227,7 @@ void Option2(char optionstate, char keypressed, bool initdisplay)
 void Option3(char optionstate, char keypressed, bool initdisplay)
 {
     thirdcomp = true;
+    PrintRadarScreen(initdisplay);
 }
 //
 //  Option4 code
@@ -603,6 +604,74 @@ void ProcessKeyPress(unsigned long int result)
 void DrawBox(int x1, int y1, int x2, int y2, uint32_t color)
 {
     oLCD.fillRoundRect(x1, y1, x2, y2, 3, color);
+}
+void PrintRadarScreen(bool initdisplay)
+{
+    // oLCD.LCDInitialize(LANDSCAPE, initdisplay);
+    DrawBox(0, 0, 250, 140, RCB_PURPLE);
+    int Angle = 45;
+    int Distance = oLCD.width();
+    int R = 75;
+    int r = 35;
+    oLCD.print("ANGLE ", 15, 10); //
+    oLCD.setBackColor(RCB_BLACK);
+    oLCD.printNumI(Angle, 65, 10, 3); //
+    oLCD.setBackColor(RCB_PURPLE);
+    oLCD.print(" DEGREES", 90, 10);
+    oLCD.print("DISTANCE ", 25, 30); //
+    oLCD.setBackColor(RCB_BLACK);
+    oLCD.printNumI(Distance, 90, 30, 3); //
+    oLCD.setBackColor(RCB_PURPLE);
+    oLCD.print(" CM", 115, 30);
+
+    printLine(120, 0, true);
+    printLine(120, 30, true);
+    printLine(120, 60, true);
+    printLine(120, 90, true);
+    printLine(120, 120, true);
+    printLine(120, 150, true);
+    printLine(120, 180, true);
+
+    ActualRadar();
+
+    oLCD.drawCircle(oLCD.width() / 2, oLCD.height(), r, RCB_WHITE);
+    oLCD.drawCircle(oLCD.width() / 2, oLCD.height(), R, RCB_WHITE);
+}
+
+void printLine(double distance, double angle, bool initial)
+{
+    double radians = angle * (PI / 180);
+    distance = distance * .625;
+    double x = distance * cos(radians);
+    double y = distance * sin(radians);
+    double x2 = (oLCD.width() / 2) + x;
+    double y2 = (oLCD.height()) - y;
+    if (initial == true)
+    {
+        oLCD.drawLine(oLCD.width() / 2, oLCD.height(), x2, y2, RCB_WHITE);
+    }
+    else
+    {
+        double xred = 75 * cos(radians);
+        double yred = 75 * sin(radians);
+        double x2red = (oLCD.width() / 2) + xred;
+        double y2red = (oLCD.height()) - yred;
+        oLCD.drawLine(x2, y2, x2red, y2red, RCB_RED);
+        oLCD.drawLine(oLCD.width() / 2, oLCD.height(), x2, y2, RCB_BLUE);
+    }
+}
+
+void ActualRadar()
+{
+    for (int i = 15; i < 165; i = i+2)
+    {
+        int radius = i;
+        int angle = i;
+        if(radius > 120){
+            radius = 120;
+        }
+        printLine(radius, angle, false);
+    }
 }
 // *************************************************************************************
 // END: OPTION3 SUPPORT
