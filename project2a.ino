@@ -5,7 +5,7 @@
 #define RCB_RED 0x001F
 #define RCB_WHITE 0xFFFF
 #define RCB_BLACK 0x0000
-#define RCB_PURPLE      0x780F
+#define RCB_PURPLE 0x780F
 
 // B
 const int pwmFrequency = 496;
@@ -57,6 +57,10 @@ const int PWMLeft = 1;
 const int PWMRight = 2;
 
 int DutyCycle;
+double TargetDir = 0;
+double TargetDis = 0;
+double CurrentDir = 0;
+double CurrentDis = 0;
 
 //
 //  Define protypes for functions
@@ -159,6 +163,7 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
 
         }*/
     }
+}
 //
 //  Option2 code
 //
@@ -178,6 +183,57 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
 //
 void Option4(char optionstate, char keypressed, bool initdisplay)
 {
+    // Intiazlies first Screen
+    oLCD.LCDInitialize(PORTRAIT, initdisplay);
+    oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+    oLCD.print("TARGET DIR", CENTER, 14);
+    String DispDir = String(TargetDir) + " DEGREES";
+    oLCD.print(DispDir, CENTER, 28);
+    oLCD.print("TARGET DIS", CENTER, 42);
+    String DispDis = String(TargetDis) + " CM";
+    oLCD.print(DispDis, CENTER, 56);
+    
+    // Pause with switch 1
+    while (digitalRead(sw1) == HIGH)
+    {
+        delay(1000);
+    }
+
+    // Intiazlies second Screen
+    oLCD.LCDInitialize(PORTRAIT, initdisplay);
+    oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+    oLCD.print("TARGET DIR", CENTER, 14);
+    oLCD.print(DispDir, CENTER, 28);
+    oLCD.print("TARGET DIS", CENTER, 42);
+    oLCD.print(DispDis, CENTER, 56);
+    oLCD.print("CURRENT DIR", CENTER, 70);
+    String DispCDir = String(CurrentDir) + " DEGREES";
+    oLCD.print(DispCDir, CENTER, 84);
+
+    // Pause with switch 2
+    while (digitalRead(sw2) == HIGH)
+    {
+        delay(1000);
+    }
+
+    // Intiazlies Third Screen
+    oLCD.LCDInitialize(PORTRAIT, initdisplay);
+    oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+    oLCD.print("TARGET DIR", CENTER, 14);
+    oLCD.print(DispDir, CENTER, 28);
+    oLCD.print("TARGET DIS", CENTER, 42);
+    oLCD.print(DispDis, CENTER, 56);
+    oLCD.print("CURRENT DIR", CENTER, 70);
+    oLCD.print(DispCDir, CENTER, 84);
+    oLCD.print("CURRENT DIS", CENTER, 98);
+    String DispCDis = String(CurrentDir) + " CM";
+    oLCD.print(DispCDis, CENTER, 112);
+
+    // Pause with switch 3
+    while (digitalRead(sw3) == HIGH)
+    {
+        delay(1000);
+    }
 }
 // *************************************************************************************
 // END: USER FUNCTIONS
@@ -449,7 +505,7 @@ void DisplayRotatedText(int x, int y)
     spr.deleteSprite();
 }
 
-//B stripped straight from exercise 5
+// B stripped straight from exercise 5
 void ProcessKeyPress(unsigned long int result)
 {
     String response = "";
@@ -457,68 +513,66 @@ void ProcessKeyPress(unsigned long int result)
     // menu key is pressed.
     if (result == KEY_MENU)
     {
-        ShowDisplay(SC_MAIN,'A',' ', false);
+        ShowDisplay(SC_MAIN, 'A', ' ', false);
     }
     else
     {
         if (oLCD.SCREEN_STATE == SC_MAIN)
         {
-            if (result == KEY_1)  
+            if (result == KEY_1)
             {
-                ShowDisplay(SC_SUB1,'A',' ', false);  //AREA ESTIMATE
+                ShowDisplay(SC_SUB1, 'A', ' ', false); // AREA ESTIMATE
             }
-            else if (result== KEY_2) 
+            else if (result == KEY_2)
             {
-                ShowDisplay(SC_SUB2,'A',' ', false);  //PERIMETER ESTIMATE
+                ShowDisplay(SC_SUB2, 'A', ' ', false); // PERIMETER ESTIMATE
             }
-        }   
-        else if (oLCD.SCREEN_STATE == SC_SUB1 || oLCD.SCREEN_STATE == SC_SUB2) //AREA ESTIMATE
+        }
+        else if (oLCD.SCREEN_STATE == SC_SUB1 || oLCD.SCREEN_STATE == SC_SUB2) // AREA ESTIMATE
         {
             // If the user presses one of the numeric keys, then display the key in the correct place on the screen.
-            if (result == KEY_0  || result == KEY_1  || result == KEY_2  || result == KEY_3  || result == KEY_4  ||
-                result == KEY_5  || result == KEY_6  || result == KEY_7  || result == KEY_8  || result == KEY_9)  
+            if (result == KEY_0 || result == KEY_1 || result == KEY_2 || result == KEY_3 || result == KEY_4 ||
+                result == KEY_5 || result == KEY_6 || result == KEY_7 || result == KEY_8 || result == KEY_9)
             {
-                //Serial.print("t=");Serial.println(oLCD.OPTION_STATE);
-                if ((oLCD.OPTION_STATE =='A') || (oLCD.OPTION_STATE == 'B'))
+                // Serial.print("t=");Serial.println(oLCD.OPTION_STATE);
+                if ((oLCD.OPTION_STATE == 'A') || (oLCD.OPTION_STATE == 'B'))
                 {
-                    ShowDisplay((screen)oLCD.SCREEN_STATE,'B',oIR.TranslateKey(result),false);  
+                    ShowDisplay((screen)oLCD.SCREEN_STATE, 'B', oIR.TranslateKey(result), false);
                 }
-                else if ((oLCD.OPTION_STATE =='C') || (oLCD.OPTION_STATE == 'D'))
+                else if ((oLCD.OPTION_STATE == 'C') || (oLCD.OPTION_STATE == 'D'))
                 {
-                    ShowDisplay((screen)oLCD.SCREEN_STATE,'D',oIR.TranslateKey(result),false);  
+                    ShowDisplay((screen)oLCD.SCREEN_STATE, 'D', oIR.TranslateKey(result), false);
                 }
                 else
                 {
-                    ShowDisplay((screen)oLCD.SCREEN_STATE,'F',oIR.TranslateKey(result),false);  
+                    ShowDisplay((screen)oLCD.SCREEN_STATE, 'F', oIR.TranslateKey(result), false);
                 }
-                
             }
-            else if (result== KEY_RETURN) 
+            else if (result == KEY_RETURN)
             {
-                if (oLCD.OPTION_STATE =='B')
+                if (oLCD.OPTION_STATE == 'B')
                 {
-                    ShowDisplay((screen)oLCD.SCREEN_STATE,'C',' ', false);  //AREA ESTIMATE
-                    //Serial.println("BINT");
+                    ShowDisplay((screen)oLCD.SCREEN_STATE, 'C', ' ', false); // AREA ESTIMATE
+                    // Serial.println("BINT");
                 }
-                else if (oLCD.OPTION_STATE =='D')
+                else if (oLCD.OPTION_STATE == 'D')
                 {
-                    ShowDisplay((screen)oLCD.SCREEN_STATE,'E',' ', false);  //AREA ESTIMATE
-                    //Serial.println("DIVISIONINIT");
+                    ShowDisplay((screen)oLCD.SCREEN_STATE, 'E', ' ', false); // AREA ESTIMATE
+                    // Serial.println("DIVISIONINIT");
                 }
                 else if (oLCD.OPTION_STATE == 'F')
                 {
-                    ShowDisplay((screen)oLCD.SCREEN_STATE,'G',' ',false);  //AREA ESTIMATE
-                    //Serial.println("CALCULATE");
+                    ShowDisplay((screen)oLCD.SCREEN_STATE, 'G', ' ', false); // AREA ESTIMATE
+                    // Serial.println("CALCULATE");
                 }
                 else if (oLCD.OPTION_STATE == 'G')
                 {
                     // Go To Main Menu if return pressed without both radius and division data.
-                    ShowDisplay((screen)oLCD.SCREEN_STATE,'A',' ',false);  
-                    //Serial.println("AINIT");
+                    ShowDisplay((screen)oLCD.SCREEN_STATE, 'A', ' ', false);
+                    // Serial.println("AINIT");
                 }
-                
             }
-        }    
+        }
     }
 }
 // *************************************************************************************
@@ -555,7 +609,17 @@ void DrawBox(int x1, int y1, int x2, int y2, uint32_t color)
 // *************************************************************************************
 // START: OPTION4 SUPPORT
 // *************************************************************************************
+// A function for converting a distance into counts for the encoder
+int distanceClac(double distance)
+{
+    double division = distance / 20.42;
+    int counts = static_cast<int>(floor(division));
+    return counts;
+}
 
+int driectionclac(double angle)
+{
+}
 // *************************************************************************************
 // END: OPTION4 SUPPORT
 // *************************************************************************************
