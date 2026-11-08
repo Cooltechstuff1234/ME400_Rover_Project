@@ -6,6 +6,9 @@
 #define RCB_WHITE 0xFFFF
 #define RCB_BLACK 0x0000
 #define RCB_PURPLE 0x780F
+
+//portMUX_TYPE encMux = portMUX_INITIALIZER_UNLOCKED; //This is to read the interrupt values with the RPM function to minimize skewed data.
+
 //
 //  Create an instance of the lcdhelper class named oLCD
 //
@@ -28,6 +31,8 @@ int mScreen = 2;
 bool firstcomp = true;
 bool thirdcomp = true;
 bool TargetFound = false;
+
+bool opt5 = false;
 // B define pins
 const int RightOutputPin = 8;
 const int LeftOutputPin = 10;
@@ -43,7 +48,7 @@ const int LeftMotorEPin = 46;
 const int RightMotorEPin = 14;
 const int LeftMotorPPin = 12;
 const int RightMotorPPin = 13;
-const int PWMLeft  = 1;
+const int PWMLeft = 1;
 const int PWMRight = 2;
 // A
 const int pwmFrequency = 496;
@@ -62,11 +67,11 @@ double error = 0;
 // duty[motor][move]: motor 0 = left, 1 = right
 // move: 0 Left CW     1 Left CCW     2 Right CW     3 Right CCW
 //       4 Both Fwd    5 Both Back    6 Robot CW     7 Robot CCW
-double duty[2][8] = {0};
-double stab[2];
+// double duty[2][8] = {0};
+// double stab[2];
 
-double timerL;
-double timerR;
+// double timerL;
+// double timerR;
 
 double Tdist = 10000;
 double Tdist_min_0 = 10000;
@@ -76,14 +81,50 @@ int Tangle_1;
 
 int DutyCycle;
 
-unsigned long tStart = 0;   // when the current window began
-double lo = 0;              // lowest duty in this window
-double hi = 0;              // highest duty in this window
-double sum = 0;             // for the average duty over the window
+unsigned long t = 0;
+unsigned long c = 0;
+unsigned long tStart = 0; // when the current window began
+double lo = 0;            // lowest duty in this window
+double hi = 0;            // highest duty in this window
+double sum = 0;           // for the average duty over the window
 long n = 0;
 
 double f;
 double g;
+
+int cpr = 40;
+double dt_0 = 0;
+double dt_1 = 0;
+double tave_0[10];
+double tave_1[10];
+
+double dt = 0;
+double dt_2 = 0;
+double dt_3 = 0;
+double dt_4 = 0;
+int DeBounce = 10;
+
+volatile long countL = 0;
+volatile long countR = 0;
+volatile long countLP = 0;
+volatile long countRP = 0;
+volatile unsigned long LLUs = 0;     // Last left microseconds
+volatile unsigned long LRUs = 0;     // Last right microseconds
+const unsigned long EncDeUS = 10000; // tune for your encoders
+
+int count0 = 0;
+int count1 = 0;
+int count2 = 0;
+int count3 = 0;
+
+double taveL[20]; //time interval over the previous 10 counts
+double taveR[20]; //
+
+double dtL = 0; // Time differental for the RPM measureing 
+double dtR = 0;
+
+double rpm_L = 0;
+double rpm_R = 0;
 
 //
 //  Define protypes for functions
@@ -97,17 +138,315 @@ void ShowDisplay(screen val, char optionstate, char keypressed, bool initdisplay
 // BEGIN: Basic Quality of Life Functions
 //*************************************************************************************
 
+void ReadRPM(double &rpm, int side)
+{
+    t = micros();
+    if (side == 0) // Left
+    {
+        if(countL-count2 > 0)
+        {
+            taveL[count0] = t - dtL;
+            dtL = t;
+            count2=countL;
+            count0++;
+        }
+        if (count0 >= 20)
+        {
+            double tsum = 0;
+
+            for (int i = 0; i < 20; i++)
+            {
+                tsum += taveL[i];
+            }
+
+            tsum = tsum / 20;
+
+            rpm = (60000)*(1000) / (tsum * 40);
+
+            for (int i = 0; i < 19; i++)
+            {
+                taveL[i] = taveL[i + 1];
+            }
+
+            taveL[19] = 0;
+
+            count0--;
+        }
+        if(t-dtL>1000000) // Wheele stop set rpm to 0
+        {
+            rpm = 0;
+            for (int i = 0; i < 20; i++)
+            {
+                taveL[i] = 0;
+            }
+        }
+    }
+    if (side == 1) // Right
+    {
+        if(countR-count3 > 0)
+        {
+            taveR[count1] = t - dtR;
+            dtR = t;
+            count3=countR;
+            count1++;
+        }
+        if (count1 >= 20)
+        {
+            double tsum = 0;
+
+            for (int i = 0; i < 20; i++)
+            {
+                tsum += taveR[i];
+            }
+
+            tsum = tsum / 20;
+
+            rpm = ((60000)*(1000)) / (tsum * 40);
+
+            for (int i = 0; i < 19; i++)
+            {
+                taveR[i] = taveR[i + 1];
+            }
+
+            taveR[19] = 0;
+
+            count1--;
+        }
+        if(t-dtR>1000000) // Wheele stop set rpm to 0
+        {
+            rpm = 0;
+            for (int i = 0; i < 10; i++)
+            {
+                taveR[i] = 0;
+            }
+        }
+    }
+}
+
+void IRAM_ATTR onLeftEdge()
+{
+    unsigned long now = micros();
+    if (now - LLUs >= EncDeUS)
+    {
+        countL++;
+        LLUs = now;
+    }
+}
+void IRAM_ATTR onRightEdge()
+{
+    unsigned long now = micros();
+    if (now - LRUs >= EncDeUS)
+    {
+        countR++;
+        LRUs = now;
+    }
+}
+
 void flushIR(unsigned long ms)
 {
     unsigned long start = millis();
-    while(millis() - start < ms)
+    while (millis() - start < ms)
     {
         oIR.GetKeyPressed();
     }
 }
 
-//Testing stuff
+void clearDisp()
+{
+    oLCD.fillRect(0, 0, 200, 200, RCB_PURPLE);
+}
 
+void clearText(int32_t x, int32_t y, int32_t width, uint16_t color)
+{
+    int32_t xStart;
+    if (x == CENTER)
+        xStart = (oLCD.width() - width) / 2;
+    else
+        xStart = x;
+    oLCD.fillRect(xStart, y - 6, width, 15, color);
+}
+
+void UpdateSCR(int type, double a, double b, double c, double d) // type:Option 1
+{
+    if (type == 1)
+    {
+        String a1 = String(a);
+        String b1 = String(b);
+        String c1 = String(c);
+        String d1;
+
+        if (d > 0)
+        {
+            d1 = "+" + String(d);
+        }
+
+        if (d < 0)
+        {
+            d1 = String(d);
+        }
+
+        clearDisp();
+        oLCD.setBackColor(RCB_PURPLE);
+        oLCD.print("RIGHT DUTY CYCLE", CENTER, 20);
+        oLCD.print(a1, CENTER, 45);
+        oLCD.print("LEFT COUNT", CENTER, 60);
+        oLCD.print(b1, CENTER, 75);
+        oLCD.print("RIGHT COUNT", CENTER, 90);
+        oLCD.print(c1, CENTER, 105);
+        oLCD.print("ERROR", CENTER, 120);
+        oLCD.print(d1, CENTER, 135);
+    }
+}
+
+int targetN(double dist) // Distance and CountsPerRevolution
+{
+    return dist / ((6.5 * 3.14159) / (cpr)); // b = dist/count
+}
+
+// Testing stuff
+
+void CountODO(bool &up0, bool &up1, int &count0, int &count1)
+{
+    c = millis();
+    if ((digitalRead(LeftOutputPin) == 1 && up0 == true) && (c - dt_3 > DeBounce))
+    {
+        dt_3 = c;
+        up0 = false;
+        count0++;
+    }
+    if ((digitalRead(LeftOutputPin) == 0 && up0 == false) && (c - dt_3 > DeBounce))
+    {
+        dt_3 = c;
+        up0 = true;
+        count0++;
+    }
+    if ((digitalRead(RightOutputPin) == 1 && up1 == true) && (c - dt_4 > DeBounce))
+    {
+        dt_4 = c;
+        up1 = false;
+        count1++;
+    }
+    if ((digitalRead(RightOutputPin) == 0 && up1 == false) && (c - dt_4 > DeBounce))
+    {
+        dt_4 = c;
+        up1 = true;
+        count1++;
+    }
+}
+
+void Move(int type, int err, double adj, int duty)
+{
+    if (type == 1) // Forward
+    {
+        digitalWrite(LeftMotorPPin, LOW);
+        digitalWrite(LeftMotorEPin, HIGH);
+        ledcWrite(PWMLeft, (duty)*maxDutyCycle / 100.0);
+        digitalWrite(RightMotorPPin, HIGH);
+        digitalWrite(RightMotorEPin, HIGH);
+        ledcWrite(PWMRight, (duty + (adj * err)) * maxDutyCycle / 100.0);
+    }
+    if (type == 2) // Backwards
+    {
+        digitalWrite(LeftMotorPPin, HIGH);
+        digitalWrite(LeftMotorEPin, HIGH);
+        ledcWrite(PWMLeft, (duty)*maxDutyCycle / 100.0);
+        digitalWrite(RightMotorPPin, LOW);
+        digitalWrite(RightMotorEPin, HIGH);
+        ledcWrite(PWMRight, (duty + (adj * err)) * maxDutyCycle / 100.0);
+    }
+}
+
+void Stop(bool &b)
+{
+    digitalWrite(LeftMotorPPin, LOW);
+    digitalWrite(LeftMotorEPin, LOW);
+    ledcWrite(PWMLeft, 0);
+    digitalWrite(RightMotorPPin, LOW);
+    digitalWrite(RightMotorEPin, LOW);
+    ledcWrite(PWMRight, 0);
+    countL=0;
+    countR=0;
+    count0=0;
+    count1=0;
+    count2=0;
+    count3=0;
+    b = false;
+}
+void DutyAdj(double &adj, double &error, int count0, int count1)
+{
+    error = count0 - count1;
+    adj = 2 * error;
+    if (adj > 10 || adj < -10)
+    {
+        if (adj > 0)
+            adj = 10;
+        if (adj < 0)
+            adj = -10;
+    }
+}
+
+void odomitry(double dist, double duty)
+{
+    int targ = targetN(dist);
+    int op1 = LeftOutputPin;
+    int op2 = RightOutputPin;
+    bool up0 = true;
+    bool up1 = true;
+    bool b = true;
+    error = 0;
+    double adj = 0;
+    double rpm_0;
+    double rpm_1;
+    int countoff = 0;
+    c = millis();
+    while (b == true)
+    {
+        digitalWrite(LeftMotorPPin, HIGH);
+        digitalWrite(LeftMotorEPin, HIGH);
+        ledcWrite(PWMLeft, (duty)*maxDutyCycle / 100.0);
+        digitalWrite(RightMotorPPin, LOW);
+        digitalWrite(RightMotorEPin, HIGH);
+        ledcWrite(PWMRight, (duty + adj) * maxDutyCycle / 100.0);
+        ReadRPM(rpm_L,0);
+        ReadRPM(rpm_R,1);
+
+        countoff = countR - countL;
+
+        error = rpm_L - rpm_R;
+
+        adj = 2 * error;
+
+        if (adj > 10 || adj < -10)
+        {
+            if (adj > 0)
+                adj = 10;
+            if (adj < 0)
+                adj = -10;
+        }
+        /*
+        Move(2,1,adj,duty);
+        CountODO(up0,up1,count0,count1);
+        DutyAdj(adj,error,count0,count1);
+        */
+        t = micros();
+        if (t - dt_1 > 1000000)
+        {
+            UpdateSCR(1, (duty + adj), countL, countR, countoff);
+            dt_1 = t;
+        }
+        if (countR >= targ && countL >= targ)
+            Stop(b);
+        if (oIR.GetKeyPressed() == KEY_POWER)
+            Stop(b);
+            String rpm = String(rpm_L);
+            String err = String(rpm_R);
+            oLCD.setBackColor(0x0000);
+            oLCD.print(rpm,5,20);
+            oLCD.print(err,5,40);
+    }
+    UpdateSCR(1, duty + adj, countL, countR, countoff);
+}
+/*
 double findStuff(double hilo, double val)
 {
     if(f==0) f = val; // Set state
@@ -203,7 +542,7 @@ void DutyCycleTune(int side,int d,int direction,int Trpm,int rot) // side: Left 
 
     int count = 0;
     int count1 = 0;
-    
+
     int op1;
     int op2;
 
@@ -273,7 +612,7 @@ void DutyCycleTune(int side,int d,int direction,int Trpm,int rot) // side: Left 
             }
 
             if(count>=10)
-            {   
+            {
                 tsum = 0;
 
                 for(int i = 0;i < 10;i++)
@@ -316,15 +655,15 @@ void DutyCycleTune(int side,int d,int direction,int Trpm,int rot) // side: Left 
                 b = false;
             }
 
-            unsigned long t_v = StableTime(stab[side], rpm_0, Trpm);
-            double dutyc[2] = {0, 0};
-            sumarray += stab[side];
-            dutyc[side] = sumarray/n;   // average duty over the window
+            //unsigned long t_v = StableTime(stab[side], rpm_0, Trpm);
+            //double dutyc[2] = {0, 0};
+            //sumarray += stab[side];
+            //dutyc[side] = sumarray/n;   // average duty over the window
 
-            if(DutyValidate(dutyc, side, direction, rot, t))
-            {
-                b = false;
-            }
+            //if(DutyValidate(dutyc, side, direction, rot, t))
+            //{
+              //  b = false;
+            //}
         }
     }
 
@@ -399,7 +738,7 @@ void DutyCycleTune(int side,int d,int direction,int Trpm,int rot) // side: Left 
             }
 
             if(count>=10)
-            {   
+            {
                 tsum = 0;
 
                 for(int i = 0;i < 10;i++)
@@ -442,7 +781,7 @@ void DutyCycleTune(int side,int d,int direction,int Trpm,int rot) // side: Left 
             }
 
             if(count1>=10)
-            {   
+            {
                 tsum1 = 0;
 
                 for(int i = 0;i < 10;i++)
@@ -494,21 +833,7 @@ void DutyCycleTune(int side,int d,int direction,int Trpm,int rot) // side: Left 
     }
     return;
 }
-
-void clearDisp()
-{
-    oLCD.fillRect(0, 0, 200, 200, RCB_PURPLE);
-}
-
-void clearText(int32_t x, int32_t y, int32_t width, uint16_t color)
-{
-    int32_t xStart;
-    if (x == CENTER)
-        xStart = (oLCD.width() - width) / 2;
-    else
-        xStart = x;
-    oLCD.fillRect(xStart, y - 6, width, 15, color);
-}
+*/
 //
 //  Option1 code
 //
@@ -580,81 +905,87 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
     }
     else if (optionstate == 'B')
     {
-        DutyCycleTune(0,aval.toInt(),0,50,0);
-        flushIR(1000);
-        DutyCycleTune(0,aval.toInt(),1,50,0);
-        flushIR(1000);
-        DutyCycleTune(1,aval.toInt(),0,50,0);
-        flushIR(1000);
-        DutyCycleTune(1,aval.toInt(),1,50,0);
-        flushIR(1000);
-        DutyCycleTune(2,aval.toInt(),0,50,0);
-        flushIR(1000);
-        DutyCycleTune(2,aval.toInt(),1,50,0);
-        flushIR(1000);
-        DutyCycleTune(2,aval.toInt(),0,50,1);
-        flushIR(1000);
-        DutyCycleTune(2,aval.toInt(),1,50,1);
-        //PWMRampTest(0);
-         /*
-        leftEncoderCount = 0;
-        rightEncoderCount = 0;
-        digitalWrite(LeftMotorPPin, LOW);
-        digitalWrite(LeftMotorEPin, HIGH);
-        ledcWrite(PWMLeft, (float)aval.toInt() * maxDutyCycle / 100.0);
-        digitalWrite(RightMotorPPin, HIGH);
-        digitalWrite(RightMotorEPin, HIGH);
-        ledcWrite(PWMRight, (float)aval.toInt() * maxDutyCycle / 100.0);
-        int duty = aval.toInt();
-        while (leftEncoderCount < counttotarget || rightEncoderCount < counttotarget)
+        odomitry(1200, aval.toInt());
+        /*
+        if (opt5 == true)
         {
-            oLCD.printNumI(67, CENTER, 54, 3, ' ');
-            ledcWrite(PWMRight, duty * maxDutyCycle / 100.0);
-            if (digitalRead(LeftOutputPin) == LOW)
-            {
-                oLCD.printNumI(420, CENTER, 32, 3, ' ');
-                leftEncoderCount++;
-                timerL = millis();
-            }
-            if (digitalRead(RightOutputPin) == LOW)
-            {
-                rightEncoderCount++;
-                timerR = millis();
-            }
-            error = leftEncoderCount - rightEncoderCount;
-            if (duty < 80 && duty > 20)
-            {
-                if (error < 0)
-                {
-                    duty++;
-                }
-                else if (error > 0)
-                {
-                    duty--;
-                }
-            }
-            if (oIR.GetKeyPressed() == KEY_POWER)
-            {
-                oLCD.printNumI(676967, CENTER, 32, 3, ' ');
-                break;
-            }
-            oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
-            oLCD.print("RIGHT DUTY CYCLE", CENTER, 8);
-            oLCD.printNumI(duty, CENTER, 28, 3, ' ');
-            oLCD.print("LEFT COUNT", CENTER, 48);
-            oLCD.printNumI(leftEncoderCount, CENTER, 68, 5, ' ');
-            oLCD.print("RIGHT COUNT", CENTER, 88);
-            oLCD.printNumI(rightEncoderCount, CENTER, 108, 5, ' ');
-            oLCD.print("ERROR", CENTER, 128);
-            oLCD.printNumI(error, CENTER, 148, 3, ' ');
-            delay(1000);
+            DutyCycleTune(0, aval.toInt(), 0, 50, 0);
+            flushIR(1000);
+            DutyCycleTune(0, aval.toInt(), 1, 50, 0);
+            flushIR(1000);
+            DutyCycleTune(1, aval.toInt(), 0, 50, 0);
+            flushIR(1000);
+            DutyCycleTune(1, aval.toInt(), 1, 50, 0);
+            flushIR(1000);
+            DutyCycleTune(2, aval.toInt(), 0, 50, 0);
+            flushIR(1000);
+            DutyCycleTune(2, aval.toInt(), 1, 50, 0);
+            flushIR(1000);
+            DutyCycleTune(2, aval.toInt(), 0, 50, 1);
+            flushIR(1000);
+            DutyCycleTune(2, aval.toInt(), 1, 50, 1);
         }
-        digitalWrite(LeftMotorPPin, LOW);
-        digitalWrite(LeftMotorEPin, LOW);
-        digitalWrite(RightMotorPPin, LOW);
-        digitalWrite(RightMotorEPin, LOW);
-    }
-    */
+        */
+        // PWMRampTest(0);
+        /*
+       leftEncoderCount = 0;
+       rightEncoderCount = 0;
+       digitalWrite(LeftMotorPPin, LOW);
+       digitalWrite(LeftMotorEPin, HIGH);
+       ledcWrite(PWMLeft, (float)aval.toInt() * maxDutyCycle / 100.0);
+       digitalWrite(RightMotorPPin, HIGH);
+       digitalWrite(RightMotorEPin, HIGH);
+       ledcWrite(PWMRight, (float)aval.toInt() * maxDutyCycle / 100.0);
+       int duty = aval.toInt();
+       while (leftEncoderCount < counttotarget || rightEncoderCount < counttotarget)
+       {
+           oLCD.printNumI(67, CENTER, 54, 3, ' ');
+           ledcWrite(PWMRight, duty * maxDutyCycle / 100.0);
+           if (digitalRead(LeftOutputPin) == LOW)
+           {
+               oLCD.printNumI(420, CENTER, 32, 3, ' ');
+               leftEncoderCount++;
+               timerL = millis();
+           }
+           if (digitalRead(RightOutputPin) == LOW)
+           {
+               rightEncoderCount++;
+               timerR = millis();
+           }
+           error = leftEncoderCount - rightEncoderCount;
+           if (duty < 80 && duty > 20)
+           {
+               if (error < 0)
+               {
+                   duty++;
+               }
+               else if (error > 0)
+               {
+                   duty--;
+               }
+           }
+           if (oIR.GetKeyPressed() == KEY_POWER)
+           {
+               oLCD.printNumI(676967, CENTER, 32, 3, ' ');
+               break;
+           }
+           oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+           oLCD.print("RIGHT DUTY CYCLE", CENTER, 8);
+           oLCD.printNumI(duty, CENTER, 28, 3, ' ');
+           oLCD.print("LEFT COUNT", CENTER, 48);
+           oLCD.printNumI(leftEncoderCount, CENTER, 68, 5, ' ');
+           oLCD.print("RIGHT COUNT", CENTER, 88);
+           oLCD.printNumI(rightEncoderCount, CENTER, 108, 5, ' ');
+           oLCD.print("ERROR", CENTER, 128);
+           oLCD.printNumI(error, CENTER, 148, 3, ' ');
+           delay(1000);
+       }
+       digitalWrite(LeftMotorPPin, LOW);
+       digitalWrite(LeftMotorEPin, LOW);
+       digitalWrite(RightMotorPPin, LOW);
+       digitalWrite(RightMotorEPin, LOW);
+   }
+   */
     }
 }
 //
@@ -664,6 +995,7 @@ void Option2(char optionstate, char keypressed, bool initdisplay)
 {
     Tdist = 10000;
     Tdist_min_0 = 10000;
+    Tdist_min_1 = 10000;
     TargetFound = false;
     if (TargetFound == false)
     {
@@ -751,7 +1083,6 @@ void Option2(char optionstate, char keypressed, bool initdisplay)
 //
 void Option3(char optionstate, char keypressed, bool initdisplay)
 {
-    firstcomp = false;
     thirdcomp = true;
 }
 //
@@ -787,9 +1118,9 @@ void setup()
     pinMode(echo, INPUT_PULLUP);
     pinMode(trig, OUTPUT);
     // B initialize Enable pins
-    ledcSetup(PWMLeft,  pwmFrequency, pwmResolution);
+    ledcSetup(PWMLeft, pwmFrequency, pwmResolution);
     ledcSetup(PWMRight, pwmFrequency, pwmResolution);
-    ledcAttachPin(LeftMotorEPin,  PWMLeft);
+    ledcAttachPin(LeftMotorEPin, PWMLeft);
     ledcAttachPin(RightMotorEPin, PWMRight);
     // B initialize Phase pins
     pinMode(LeftMotorPPin, OUTPUT);
@@ -803,6 +1134,9 @@ void setup()
     xScreen = oLCD.getViewportWidth();
     // Get height of TFT display in pixels
     yScreen = oLCD.getViewportHeight();
+
+    attachInterrupt(digitalPinToInterrupt(LeftOutputPin), onLeftEdge, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(RightOutputPin), onRightEdge, CHANGE);
 }
 
 //
@@ -919,7 +1253,7 @@ void ShowDisplay(screen val, char optionstate, char keypressed, bool initdisplay
         oLCD.print("2. SEEK TARGET", 10, 38);
         oLCD.setColor(0xFFFFE);
         oLCD.print("3. LOCATE TARGET", 10, 52);
-        if (firstcomp == true && thirdcomp == true)
+        if (firstcomp == true || thirdcomp == true)
         {
             oLCD.setColor(0x001F);
         }
@@ -954,7 +1288,7 @@ void ShowDisplay(screen val, char optionstate, char keypressed, bool initdisplay
         Serial.println("option3");
         Option3(optionstate, keypressed, initdisplay);
     }
-    else if (val == SC_SUB4)
+    else if (val == SC_SUB4 && firstcomp == false && thirdcomp == false)
     {
         Serial.println("option4");
         Option4(optionstate, keypressed, initdisplay);
