@@ -73,7 +73,7 @@ double error = 0;
 // double timerL;
 // double timerR;
 
-double Tdist[10];
+double Tdist;
 double Tdist_min_0 = 10000;
 double Tdist_min_1 = 10000;
 int Tangle_0;
@@ -118,10 +118,8 @@ int count2 = 0;
 int count3 = 0;
 
 double taveL[20]; // time interval over the previous 10 counts
-double taveL[20]; // time interval over the previous 10 counts
 double taveR[20]; //
 
-double dtL = 0; // Time differental for the RPM measureing
 double dtL = 0; // Time differental for the RPM measureing
 double dtR = 0;
 
@@ -173,16 +171,6 @@ void IRAM_ATTR onRightEdge()
         LRUs = now;
     }
 }
-// Option 2
-
-// Option 3
-void PrintRadarScreen(bool initdisplay);
-void printLine(double distance, double angle, bool initial);
-void ActualRadar();
-// Option 4
-// *************************************************************************************
-// BEGIN: USER FUNCTION
-// *************************************************************************************
 // Option 2
 
 // Option 3
@@ -273,7 +261,7 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
     }
     else if (optionstate == 'B')
     {
-        odomitry(1200, aval.toInt());
+        odomitry(1000, aval.toInt(),2,1,0);
     }
 }
 //
@@ -1050,7 +1038,6 @@ void odomitry(double dist, double duty, int move, int SCR, int debug)
 
 void acuScan(double &ang, double &dist)
 {
-    int UltraAve = 0;
     Tdist_min_0 = 10000;
     Tdist_min_1 = 10000;
     TargetFound = false;
@@ -1059,7 +1046,7 @@ void acuScan(double &ang, double &dist)
         for (int i = 0; i < 90; i++)
         {
 
-            servowrite(35, i + angle_offset, 2);
+            servowrite(35, i + angle_offset, 1);
 
             if (i == 0)
             {
@@ -1067,34 +1054,22 @@ void acuScan(double &ang, double &dist)
             }
             else
             {
-                delay(10);
+                delay(1);
             }
 
-            for(int j = 0; j < 10; j++)
+                Tdist = calculateDistance(38, 37);
+
+            if (Tdist < Tdist_min_0)
             {
-                Tdist[j] = calculateDistance(38, 37);
-            }
-
-            double Tdistave = 0;
-
-            for(int j = 0; j < 10; j++)
-            {
-                Tdistave += Tdist[j];
-            }
-
-            UltraAve = Tdistave / 10;
-
-            if (UltraAve < Tdist_min_0)
-            {
-                if (UltraAve >= 5)
+                if (Tdist >= 2)
                 {
-                    Tdist_min_0 = UltraAve;
+                    Tdist_min_0 = Tdist;
                     Tangle_0 = i;
                 }
             }
             String text = String(i);
             String text1 = String(Tdist_min_0);
-            String text2 = String(UltraAve);
+            String text2 = String(Tdist);
             oLCD.setBackColor(0x0000);
             oLCD.print(text, 20, 20);
             oLCD.print(text1, 20, 40);
@@ -1105,7 +1080,7 @@ void acuScan(double &ang, double &dist)
         for (int i = 90; i > 0; i--)
         {
 
-            servowrite(35, i + angle_offset, 2);
+            servowrite(35, i + angle_offset, 1);
 
             if (i == 0)
             {
@@ -1113,49 +1088,35 @@ void acuScan(double &ang, double &dist)
             }
             else
             {
-                delay(10);
+                delay(1);
             }
 
-            for(int j = 0; j < 10; j++)
-            {
-            Tdist[j] = calculateDistance(38, 37);
-            }
-            
-            double Tdistave = 0;
+            Tdist = calculateDistance(38, 37);
 
-            for(int j = 0; j < 10; j++)
+            if (Tdist < Tdist_min_1)
             {
-                Tdistave += Tdist[j];
-            }
-
-            UltraAve = Tdistave / 10;
-
-            if (UltraAve < Tdist_min_0)
-            {
-                if (UltraAve >= 5)
+                if (Tdist >= 2)
                 {
-                    Tdist_min_0 = UltraAve;
-                    Tangle_0 = i;
+                    Tdist_min_1 = Tdist;
+                    Tangle_1 = i;
                 }
             }
 
             String text = String(i);
             String text1 = String(Tdist_min_1);
-            String text2 = String(UltraAve);
+            String text2 = String(Tdist);
             oLCD.setBackColor(0x0000);
             oLCD.print(text, 20, 20);
             oLCD.print(text1, 20, 40);
             oLCD.print(text2, 20, 60);
             oLCD.setBackColor(RCB_PURPLE);
         }
-        if (Tdist_min_1 <= 150 && Tdist_min_1 >= 5)
-        {
-            TargetFound = true;
-        }
     }
+    
     double AngleA = (Tangle_1 + Tangle_0) / 2;
-    UpdateSCR(2, UltraAve, AngleA, 0, 0);
-    ang = AngleA;
+    UpdateSCR(2, (Tdist_min_1 + Tdist_min_0) / 2, AngleA, 0, 0);
+
+    ang = (Tangle_1 + Tangle_0) / 2;
     dist = (Tdist_min_1 + Tdist_min_0) / 2;
 
     String text = String((Tdist_min_1 + Tdist_min_0) / 2);
@@ -1197,34 +1158,24 @@ void FollowUltra()
             }
             else if (Target_Angle >= 80) // edge case on left side
             {
-                odomitry(25, 30, 3, 0, 0); // turn left 45 degrees
+                odomitry(relAngle(Target_Angle), 30, 3, 0, 0); // turn left 45 degrees
             }
             else if (Target_Angle <= 10) // edge case on right side
             {
-                odomitry(25, 30, 4, 0, 0);// turn right 45 degrees
+                odomitry(relAngle(Target_Angle), 30, 4, 0, 0);// turn right 45 degrees
             }
             else if (Target_Angle < 80 && Target_Angle > 10)
             {
                 if(Target_Angle >= 55)
                 {
                     odomitry(relAngle(Target_Angle), 30, 3, 0, 0); // turn left x degrees
+                    odomitry(dist, 30, 2, 0, 0); // go forward
                 }
                 if(Target_Angle <= 35)
                 {
                     odomitry(relAngle(Target_Angle), 30, 4, 0, 0); // turn right x degrees
+                    odomitry(dist, 30, 2, 0, 0); // go forward
                 }
-            }
-            else if (Target_Angle > 35 && Target_Angle < 55)
-            {
-                if(dist>20)
-                {
-                    odomitry(20, 30, 2, 0, 0);// turn right 45 degrees
-                }
-                else if (dist<20)
-                {
-                    odomitry(dist, 30, 2, 0, 0);// turn right 45 degrees
-                }
-                // go forward
             }
             if (oIR.GetKeyPressed() == KEY_POWER)
             {
@@ -1254,39 +1205,6 @@ void DrawBox(int x1, int y1, int x2, int y2, uint32_t color)
     oLCD.fillRoundRect(x1, y1, x2, y2, 3, color);
 }
 
-void PrintRadarScreen(bool initdisplay)
-{
-    // oLCD.LCDInitialize(LANDSCAPE, initdisplay);
-    DrawBox(0, 0, 250, 140, RCB_PURPLE);
-    int Angle = 45;
-    int Distance = oLCD.width();
-    int R = 75;
-    int r = 35;
-    oLCD.print("ANGLE ", 15, 10); //
-    oLCD.setBackColor(RCB_BLACK);
-    oLCD.printNumI(Angle, 65, 10, 3); //
-    oLCD.setBackColor(RCB_PURPLE);
-    oLCD.print(" DEGREES", 90, 10);
-    oLCD.print("DISTANCE ", 25, 30); //
-    oLCD.setBackColor(RCB_BLACK);
-    oLCD.printNumI(Distance, 90, 30, 3); //
-    oLCD.setBackColor(RCB_PURPLE);
-    oLCD.print(" CM", 115, 30);
-
-    printLine(120, 0, true);
-    printLine(120, 30, true);
-    printLine(120, 60, true);
-    printLine(120, 90, true);
-    printLine(120, 120, true);
-    printLine(120, 150, true);
-    printLine(120, 180, true);
-
-    ActualRadar();
-
-    oLCD.drawCircle(oLCD.width() / 2, oLCD.height(), r, RCB_WHITE);
-    oLCD.drawCircle(oLCD.width() / 2, oLCD.height(), R, RCB_WHITE);
-}
-
 void printLine(double distance, double angle, bool initial)
 {
     double radians = angle * (PI / 180);
@@ -1357,42 +1275,6 @@ void PrintRadarScreen(bool initdisplay)
     oLCD.drawCircle(oLCD.width() / 2, oLCD.height(), R, RCB_WHITE);
 }
 
-void printLine(double distance, double angle, bool initial)
-{
-    double radians = angle * (PI / 180);
-    distance = distance * .625;
-    double x = distance * cos(radians);
-    double y = distance * sin(radians);
-    double x2 = (oLCD.width() / 2) + x;
-    double y2 = (oLCD.height()) - y;
-    if (initial == true)
-    {
-        oLCD.drawLine(oLCD.width() / 2, oLCD.height(), x2, y2, RCB_WHITE);
-    }
-    else
-    {
-        double xred = 75 * cos(radians);
-        double yred = 75 * sin(radians);
-        double x2red = (oLCD.width() / 2) + xred;
-        double y2red = (oLCD.height()) - yred;
-        oLCD.drawLine(x2, y2, x2red, y2red, RCB_RED);
-        oLCD.drawLine(oLCD.width() / 2, oLCD.height(), x2, y2, RCB_BLUE);
-    }
-}
-
-void ActualRadar()
-{
-    for (int i = 15; i < 165; i = i + 2)
-    {
-        int radius = i;
-        int angle = i;
-        if (radius > 120)
-        {
-            radius = 120;
-        }
-        printLine(radius, angle, false);
-    }
-}
 // *************************************************************************************
 // END: OPTION3 SUPPORT
 // *************************************************************************************
