@@ -248,6 +248,7 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
     if (ScanDone == false)
     {
         clearDisp();
+        oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
         PrintRadarScreen(initdisplay);
         for (int i = 15; i < 165; i += 2)
         {
@@ -623,10 +624,6 @@ void ShowDisplay(screen val, char optionstate, char keypressed, bool initdisplay
     }
     else if (val == SC_SUB3)
     {
-        // if (ScanDone == false)
-        // {
-        //     clearDisp();
-        // }
         Serial.println("option3");
         Option3(optionstate, keypressed, initdisplay);
     }
