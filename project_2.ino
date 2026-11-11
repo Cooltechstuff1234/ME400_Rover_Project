@@ -7,7 +7,7 @@
 #define RCB_BLACK 0x0000
 #define RCB_PURPLE 0x780F
 
-portMUX_TYPE encMux = portMUX_INITIALIZER_UNLOCKED; //This is to read the interrupt values with the RPM function to minimize skewed data.
+portMUX_TYPE encMux = portMUX_INITIALIZER_UNLOCKED; // This is to read the interrupt values with the RPM function to minimize skewed data.
 
 //
 //  Create an instance of the lcdhelper class named oLCD
@@ -30,9 +30,11 @@ int mScreen = 2;
 // B creates booleans that stay false and prevent options 2 and 4 until they are okay to run.
 bool firstcomp = true;
 bool thirdcomp = true;
-bool TargetFound = false;
+bool FoundTarget = false; // used in Option 2
+bool TargetFound = false; // used in Option 3
+bool ScanDone = false;
+bool nav = true;
 
-bool opt5 = false;
 // B define pins
 const int RightOutputPin = 8;
 const int LeftOutputPin = 10;
@@ -55,25 +57,16 @@ const int pwmFrequency = 496;
 const int pwmResolution = 8;
 const int maxDutyCycle = (int)pow(2, pwmResolution) - 1;
 // B
-double rightEncoderCount;
-double leftEncoderCount;
 double wheelDiameter = 65.31; // mm
 double countsPerRevolution = 20;
 double wheelCircumference = (wheelDiameter) * (3.14159);
 double revolutionstotarget = 100 / (wheelCircumference / 10);
 double counttotarget = countsPerRevolution * revolutionstotarget;
 double error = 0;
+const double wheelRatio = 1.0037; // right / left effective diameter, tuned from drift
+double angle_offset = 90;
 
-// duty[motor][move]: motor 0 = left, 1 = right
-// move: 0 Left CW     1 Left CCW     2 Right CW     3 Right CCW
-//       4 Both Fwd    5 Both Back    6 Robot CW     7 Robot CCW
-// double duty[2][8] = {0};
-// double stab[2];
-
-// double timerL;
-// double timerR;
-
-double Tdist;
+double Tdist = 10000;
 double Tdist_min_0 = 10000;
 double Tdist_min_1 = 10000;
 int Tangle_0;
@@ -83,34 +76,17 @@ int DutyCycle;
 
 unsigned long t = 0;
 unsigned long c = 0;
-unsigned long tStart = 0; // when the current window began
-double lo = 0;            // lowest duty in this window
-double hi = 0;            // highest duty in this window
-double sum = 0;           // for the average duty over the window
-long n = 0;
-
-double f;
-double g;
 
 int cpr = 40;
-double dt_0 = 0;
-double dt_1 = 0;
-double tave_0[10];
-double tave_1[10];
 
-double dt = 0;
-double dt_2 = 0;
-double dt_3 = 0;
-double dt_4 = 0;
-int DeBounce = 10;
+double dt_1 = 0;
 
 volatile long countL = 0;
 volatile long countR = 0;
-volatile long countLP = 0;
-volatile long countRP = 0;
+
 volatile unsigned long LLUs = 0;     // Last left microseconds
 volatile unsigned long LRUs = 0;     // Last right microseconds
-const unsigned long EncDeUS = 10000; // tune for your encoders
+const unsigned long EncDeUS = 20000; // tune for your encoders
 
 int count0 = 0;
 int count1 = 0;
@@ -131,11 +107,45 @@ double TargetDis = 0;
 double CurrentDir = 0;
 double CurrentDis = 0;
 
-double angle_offset = 45;
+double delta = 0;
+double deltaANG = 0;
 
-const double wheelRatio = 1.0037;   // right / left effective diameter, tuned from drift
+bool CascadeExit = false;
 
-bool FoundTarget = false;
+bool op1 = true;
+bool op2 = true;
+bool op3 = true;
+bool op4 = true;
+
+double dt = 0;
+
+// ResetTurnRPM() and ReadTurnRPM()
+const int TurnN = 2; // gaps averaged. 2 gaps = 3 counts. Keep it even: your gaps alternate short/long.
+
+double ttaveL[TurnN]; // Previous gaps between counts on the left wheel
+double ttaveR[TurnN]; // Previous gaps between counts on the right wheel
+int tcount0 = 0; // gaps stored, left
+int tcount1 = 0; // total counts
+long tcount2 = 0; // left count at the previous edge
+long tcount3 = 0; // right count at the previous edge
+double tdtL = 0; //time of last edge for the Left wheel
+double tdtR = 0; //time of last edge for the Right wheel
+double tgapL = 0; //average time per count for the Left wheel
+double tgapR = 0; //average time per count for the Right wheel
+double trpm_L = 0; //Left wheel rpm 
+double trpm_R = 0; //Right wheel rpm
+//------------------------------------------------------------------
+
+//PredictStop()
+const double CoastTime = 50000; // Time it takes for wheel to stop after cutoff
+bool doneL = false; // Cuttof Left wheel
+bool doneR = false; // Cutoff Right wheel
+//------------------------------------------------------------------
+
+
+
+
+
 
 //
 //  Define protypes for functions
@@ -149,9 +159,10 @@ void clearText(int32_t x, int32_t y, int32_t width, uint16_t color);
 void UpdateSCR(int type, double a, double b, double c, double d);
 int targetN(double dist);
 void Move(int type, int err, double adj, int duty);
-void Stop(bool &b);
+void Stop();
 void DutyAdj(double &adj, double &error, int count0, int count1);
-void odomitry(double dist, double duty, int move, int SCR, int debug);
+void TranslateRobot(double dist, double duty, int move, int SCR, int debug);
+bool CheckExit();
 
 void IRAM_ATTR onLeftEdge()
 {
@@ -171,13 +182,16 @@ void IRAM_ATTR onRightEdge()
         LRUs = now;
     }
 }
-// Option 2
 
+// Option 2
+double relAngle(double ang, double exof,int reltype);
 // Option 3
 void PrintRadarScreen(bool initdisplay);
 void printLine(double distance, double angle, bool initial);
-void ActualRadar();
+void ActualRadar(int radius, int i);
 // Option 4
+void DrawBox(int x, int y, int width, int height, uint32_t color);
+
 // *************************************************************************************
 // BEGIN: USER FUNCTION
 // *************************************************************************************
@@ -261,7 +275,8 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
     }
     else if (optionstate == 'B')
     {
-        odomitry(1000, aval.toInt(),2,1,0);
+        DutyCycle = aval.toInt();
+        TranslateRobot(100, aval.toInt(), 2, 1, 0);
     }
 }
 //
@@ -269,78 +284,223 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
 //
 void Option2(char optionstate, char keypressed, bool initdisplay)
 {
-    FollowUltra();
+    FollowUltra(); // Find Target
+    if (CheckExit())
+        return;
+    while (!CheckExit()) // show result until RETURN/MENU
+    {
+        if (micros() - dt > 1000000)
+        {
+            UpdateSCR(3, 0, 0, 0, 0);
+            dt = micros();
+        }
+    }
 }
 //
 //  Option3 code
 //
 void Option3(char optionstate, char keypressed, bool initdisplay)
 {
-    thirdcomp = true;
-    PrintRadarScreen(initdisplay);
-    PrintRadarScreen(initdisplay);
+
+    if (ScanDone == false)
+    {
+        clearDisp();
+        oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+        PrintRadarScreen(initdisplay);
+        for (int i = 15; i < 165; i += 2)
+        {
+
+            servowrite(35, i, 3);
+
+            if (i == 0)
+            {
+                delay(1000);
+            }
+            else
+            {
+                delay(100);
+            }
+
+            Tdist = calculateDistance(38, 37);
+
+            if (Tdist < Tdist_min_0)
+            {
+                if (Tdist >= 5)
+                {
+                    Tdist_min_0 = Tdist;
+                    Tangle_0 = i;
+                }
+            }
+            if (i != 30, i != 60, i != 90, i != 120, i != 150)
+            {
+                ActualRadar(Tdist, i);
+            }
+            oLCD.printNumI(i, 65, 10, 3);
+            oLCD.setBackColor(RCB_BLACK);
+            oLCD.printNumI(Tdist, 90, 30, 3);
+            oLCD.setBackColor(RCB_BLACK);
+            // String text = String(i);
+            // String text1 = String(Tdist_min_0);
+            // String text2 = String(Tdist);
+            // oLCD.setBackColor(0x0000);
+            // oLCD.print(text, 20, 20);
+            // oLCD.print(text1, 20, 40);
+            // oLCD.print(text2, 20, 60);
+        }
+
+        Tdist = 10000;
+        for (int i = 165; i > 15; i--)
+        {
+
+            servowrite(35, i, 3);
+
+            if (i == 0)
+            {
+                delay(1000);
+            }
+            else
+            {
+                delay(100);
+            }
+
+            Tdist = calculateDistance(38, 37);
+
+            if (Tdist < Tdist_min_1)
+            {
+                if (Tdist >= 5)
+                {
+                    Tdist_min_1 = Tdist;
+                    Tangle_1 = i;
+                }
+            }
+            if (i != 30, i != 60, i != 90, i != 120, i != 150)
+            {
+                ActualRadar(Tdist, i);
+            }
+            oLCD.printNumI(i, 65, 10, 3);
+            oLCD.setBackColor(RCB_BLACK);
+            oLCD.printNumI(Tdist, 90, 30, 3);
+            oLCD.setBackColor(RCB_BLACK);
+            // String text = String(i);
+            // String text1 = String(Tdist_min_1);
+            // String text2 = String(Tdist);
+            // oLCD.setBackColor(0x0000);
+            // oLCD.print(text, 20, 20);
+            // oLCD.print(text1, 20, 40);
+            // oLCD.print(text2, 20, 60);
+        }
+
+        TargetDis = (Tdist_min_1 + Tdist_min_0) / 2;
+        TargetDir = (Tangle_1 + Tangle_0) / 2;
+        oLCD.printNumI(TargetDir, 65, 10, 3);
+        oLCD.setBackColor(RCB_BLACK);
+        oLCD.printNumI(TargetDis, 90, 30, 3);
+        oLCD.setBackColor(RCB_BLACK);
+        if (TargetDis <= 120 && TargetDis >= 5)
+        {
+            TargetFound = true;
+        }
+        else
+        {
+            TargetFound = false;
+        }
+
+        ScanDone = true;
+    }
+
+    // Explains the result of the scan
+    if (TargetFound == true)
+    {
+        thirdcomp = false;
+        DrawBox(35, 68, 90, 55, RCB_BLACK);
+        oLCD.print("TARGET", CENTER, 76);
+        String DispDir = String(TargetDir) + " DEGREES";
+        oLCD.print(DispDir, CENTER, 90);
+        String DispDis = String(TargetDis) + " CM";
+        oLCD.print(DispDis, CENTER, 104);
+    }
+    else
+    {
+        DrawBox(35, 68, 90, 55, RCB_BLACK);
+        oLCD.print("TARGET", CENTER, 76);
+        oLCD.print("NOT", CENTER, 90);
+        oLCD.print("FOUND", CENTER, 104);
+    }
 }
 //
 //  Option4 code
 //
 void Option4(char optionstate, char keypressed, bool initdisplay)
 {
-    // Intiazlies first Screen
-    oLCD.LCDInitialize(PORTRAIT, initdisplay);
-    oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
-    oLCD.print("TARGET DIR", CENTER, 14);
-    String DispDir = String(TargetDir) + " DEGREES";
-    oLCD.print(DispDir, CENTER, 28);
-    oLCD.print("TARGET DIS", CENTER, 42);
-    String DispDis = String(TargetDis) + " CM";
-    oLCD.print(DispDis, CENTER, 56);
-
-    // Code to align the robot
-
-    // Code to align the robot
-
-    // Pause with switch 1
-    while (digitalRead(sw1) == HIGH)
+    CurrentDir = 0;
+    CurrentDis = 0;
+    if (nav == true)
     {
+        // Intiazlies first Screen
+        oLCD.LCDInitialize(PORTRAIT, initdisplay);
+        oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+        oLCD.print("TARGET DIR", CENTER, 14);
+        String DispDir = String(TargetDir) + " DEGREES";
+        oLCD.print(DispDir, CENTER, 28);
+        oLCD.print("TARGET DIS", CENTER, 42);
+        String DispDis = String(TargetDis) + " CM";
+        oLCD.print(DispDis, CENTER, 56);
+
+        // Code to align the robot
+        TranslateRobot(22.62, 30, 3, 0, 0); // turn CCW
         delay(1000);
-    }
+        TranslateRobot(13, 30, 2, 0, 0);    // move forward
 
-    // Code to turn the robot
+        // Pause with switch 1
+        while (digitalRead(sw1) == HIGH)
+        {
+            delay(50);
+        }
 
-    // Intiazlies second Screen
-    oLCD.LCDInitialize(PORTRAIT, initdisplay);
-    oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
-    oLCD.print("TARGET DIR", CENTER, 14);
-    oLCD.print(DispDir, CENTER, 28);
-    oLCD.print("TARGET DIS", CENTER, 42);
-    oLCD.print(DispDis, CENTER, 56);
-    oLCD.print("CURRENT DIR", CENTER, 70);
-    String DispCDir = String(CurrentDir) + " DEGREES";
-    oLCD.print(DispCDir, CENTER, 84);
+        // Code to turn the robot
+        TranslateRobot(relAngle(CurrentDir, TargetDir, 1), 30, 5, 0, 0);
 
-    // Pause with switch 2
-    while (digitalRead(sw2) == HIGH)
-    {
-        delay(1000);
-    }
+        // Intiazlies second Screen
+        oLCD.LCDInitialize(PORTRAIT, initdisplay);
+        oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+        oLCD.print("TARGET DIR", CENTER, 14);
+        oLCD.print(DispDir, CENTER, 28);
+        oLCD.print("TARGET DIS", CENTER, 42);
+        oLCD.print(DispDis, CENTER, 56);
+        oLCD.print("CURRENT DIR", CENTER, 70);
+        String DispCDir = String(CurrentDir) + " DEGREES";
 
-    // Intiazlies Third Screen
-    oLCD.LCDInitialize(PORTRAIT, initdisplay);
-    oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
-    oLCD.print("TARGET DIR", CENTER, 14);
-    oLCD.print(DispDir, CENTER, 28);
-    oLCD.print("TARGET DIS", CENTER, 42);
-    oLCD.print(DispDis, CENTER, 56);
-    oLCD.print("CURRENT DIR", CENTER, 70);
-    oLCD.print(DispCDir, CENTER, 84);
-    oLCD.print("CURRENT DIS", CENTER, 98);
-    String DispCDis = String(CurrentDir) + " CM";
-    oLCD.print(DispCDis, CENTER, 112);
+        oLCD.print(DispCDir, CENTER, 84);
 
-    // Pause with switch 3
-    while (digitalRead(sw3) == HIGH)
-    {
-        delay(1000);
+        // Pause with switch 2
+        while (digitalRead(sw2) == HIGH)
+        {
+            delay(50);
+        }
+
+        // Code to move towards Target
+        TranslateRobot(TargetDis, DutyCycle, 2, 0, 0);
+
+        // Intiazlies Third Screen
+        oLCD.LCDInitialize(PORTRAIT, initdisplay);
+        oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+        oLCD.print("TARGET DIR", CENTER, 14);
+        oLCD.print(DispDir, CENTER, 28);
+        oLCD.print("TARGET DIS", CENTER, 42);
+        oLCD.print(DispDis, CENTER, 56);
+        oLCD.print("CURRENT DIR", CENTER, 70);
+        DispCDir = String(CurrentDir) + " DEGREES";
+        oLCD.print(DispCDir, CENTER, 84);
+        oLCD.print("CURRENT DIS", CENTER, 98);
+        String DispCDis = String(CurrentDis) + " CM";
+        oLCD.print(DispCDis, CENTER, 112);
+
+        // Pause with switch 3
+        while (digitalRead(sw3) == HIGH)
+        {
+            delay(50);
+        }
+        nav = false;
     }
 }
 // *************************************************************************************
@@ -390,6 +550,10 @@ void setup()
 
     attachInterrupt(digitalPinToInterrupt(LeftOutputPin), onLeftEdge, CHANGE);
     attachInterrupt(digitalPinToInterrupt(RightOutputPin), onRightEdge, CHANGE);
+
+    // Intializing the servos
+    servowrite(35, 90, 3);
+    servowrite(36, 0, 3);
 }
 
 //
@@ -404,6 +568,9 @@ void loop()
     // menu key is pressed.
     if (last_key_processed == KEY_MENU)
     {
+        op2 = true;
+        nav = true;
+        ScanDone = false;
         ShowDisplay(SC_MAIN, ' ', ' ');
     }
     else
@@ -479,6 +646,60 @@ void loop()
             }
         }
     }
+    if (CascadeExit)
+    {
+        CascadeExit = false; // reset so the next option can run
+        op4 = true;
+        op3 = true;
+        op2 = true;
+        op1 = true;
+        nav = true;
+        ScanDone = false;
+        ShowDisplay(SC_MAIN, ' ', ' ');
+    }
+    if(last_key_processed == KEY_9)
+    {
+        firstcomp = false;
+        thirdcomp = false;
+        TargetDir = 70;
+        TargetDis = 90;
+        DutyCycle = 55;
+    }
+    if(last_key_processed == KEY_5)
+    {
+        TranslateRobot(90,30,5,1,1);
+        delay(1000);
+        TranslateRobot(-90,30,5,1,1);
+        delay(1000);
+        TranslateRobot(90,30,5,1,1);
+        delay(1000);
+        TranslateRobot(-90,30,5,1,1);
+        delay(1000);
+        TranslateRobot(45,30,5,1,1);
+        delay(1000);
+        TranslateRobot(-45,30,5,1,1);
+        delay(1000);
+        TranslateRobot(45,30,5,1,1);
+        delay(1000);
+        TranslateRobot(-45,30,5,1,1);
+        delay(1000);
+        TranslateRobot(25,30,5,1,1);
+        delay(1000);
+        TranslateRobot(-25,30,5,1,1);
+        delay(1000);
+        TranslateRobot(25,30,5,1,1);
+        delay(1000);
+        TranslateRobot(-25,30,5,1,1);
+        delay(1000);
+        TranslateRobot(5,30,5,1,1);
+        delay(1000);
+        TranslateRobot(-5,30,5,1,1);
+        delay(1000);
+        TranslateRobot(5,30,5,1,1);
+        delay(1000);
+        TranslateRobot(-5,30,5,1,1);
+        delay(1000);
+    }
     delay(1000);
 }
 //
@@ -531,13 +752,6 @@ void ShowDisplay(screen val, char optionstate, char keypressed, bool initdisplay
     }
     else if (val == SC_SUB3)
     {
-        clearDisp();
-        oLCD.print("PREPARING", CENTER, 10);
-        oLCD.print("TO", CENTER, 24);
-        oLCD.setBackColor(RCB_PURPLE);
-        oLCD.print("ACQUIRE", CENTER, 38);
-        oLCD.print("TARGET", CENTER, 52);
-        firstcomp = false;
         Serial.println("option3");
         Option3(optionstate, keypressed, initdisplay);
     }
@@ -705,25 +919,58 @@ void ProcessKeyPress(unsigned long int result)
 // *************************************************************************************
 // END: UTILITY FUNCTIONS
 // *************************************************************************************
+
+bool CheckExit()
+{
+    if (!CascadeExit)
+    {
+        unsigned long key = oIR.GetKeyPressed();
+        if (key == KEY_RETURN || key == KEY_MENU)
+        {
+            CascadeExit = true;
+            Stop();
+        }
+    }
+    return CascadeExit;
+}
+
+void Break(bool &a)
+{
+    unsigned long key = oIR.GetKeyPressed();
+    if (key == KEY_RETURN || key == KEY_MENU || CascadeExit == true)
+    {
+        Stop();
+        if (a == true)
+            a = false;
+        else if (a == false)
+            a = true;
+        CascadeExit = true;
+    }
+    //Serial.println(key);
+}
+
 // *************************************************************************************
 // START: OPTION1 SUPPORT
 // *************************************************************************************
-void ReadRPM(double &rpm, int side)
+void ReadRPM(double &rpm, int side) // Reads an rpm over a longer interval great for long distance travel
 {
     t = micros();
     if (side == 0) // Left
     {
-        portENTER_CRITICAL(&encMux); // Reading ISR's Count and label edge time
+        portENTER_CRITICAL(&encMux); // Insert data every count
         long c = countL;
         unsigned long e = LLUs;
         portEXIT_CRITICAL(&encMux);
 
-        if (c - count2 > 0) //Every new edge
+        if (c - count2 > 0) // Every new edge
         {
-            taveL[count0] = (e - dtL)/(c - count2);
+            if (count2 > 0) // NEW: skip the first edge of a move; its interval starts at the previous move
+            {
+                taveL[count0] = (e - dtL) / (c - count2);
+                count0++;
+            }
             dtL = e;
             count2 = c;
-            count0++;
         }
         if (count0 >= 20)
         {
@@ -758,17 +1005,20 @@ void ReadRPM(double &rpm, int side)
     }
     if (side == 1) // Right
     {
-        portENTER_CRITICAL(&encMux);
+        portENTER_CRITICAL(&encMux); // Insert data every count
         long c = countR;
         unsigned long e = LRUs;
         portEXIT_CRITICAL(&encMux);
 
-        if (c - count3 > 0)
+        if (c - count3 > 0) // Every new edge
         {
-            taveR[count1] = (e - dtR)/(c - count3);
+            if (count3 > 0) // NEW: skip the first edge of a move; its interval starts at the previous move
+            {
+                taveL[count1] = (e - dtR) / (c - count3);
+                count1++;
+            }
             dtR = e;
             count3 = c;
-            count1++;
         }
         if (count1 >= 20)
         {
@@ -803,7 +1053,147 @@ void ReadRPM(double &rpm, int side)
     }
 }
 
-void flushIR(unsigned long ms)
+void ResetTurnRPM() // call at the start of every move
+{
+    tcount0 = 0;
+    tcount1 = 0;
+    tcount2 = 0;
+    tcount3 = 0;
+    tgapL = 0;
+    tgapR = 0;
+    trpm_L = 0;
+    trpm_R = 0;
+}
+
+void ReadTurnRPM(double &rpm, int side) // Reads rpm over a short interval 
+{
+    t = micros();
+    if (side == 0) // Left
+    {
+        portENTER_CRITICAL(&encMux); // Insert data every count
+        long c = countL;
+        unsigned long e = LLUs;
+        portEXIT_CRITICAL(&encMux);
+
+        if (c - tcount2 > 0) // every new edge
+        {
+            if (tcount2 > 0) // skip the first edge of a move
+            {
+                ttaveL[tcount0] = (e - tdtL) / (c - tcount2);
+                tcount0++;
+            }
+            tdtL = e;
+            tcount2 = c;
+        }
+        if (tcount0 >= TurnN) // if enough gaps then average the turning time interval
+        {
+            double tsum = 0;
+
+            for (int i = 0; i < TurnN; i++)
+            {
+                tsum += ttaveL[i];
+            }
+
+            tgapL = tsum / TurnN;
+
+            rpm = 60000000.0 / (tgapL * cpr);
+
+            for (int i = 0; i < TurnN - 1; i++) // slide the window along
+            {
+                ttaveL[i] = ttaveL[i + 1];
+            }
+
+            tcount0--;
+        }
+        if (tgapL > 0 && t - tdtL > 1.5 * tgapL) // if there is no edge where there should be one the wheel is slowing
+        {
+            rpm = 60000000.0 / ((t - tdtL) * cpr);
+        }
+        if (t - tdtL > 1000000) // if wheel stopped then set rpm to 0
+        {
+            rpm = 0;
+            tgapL = 0;
+            tcount0 = 0;
+        }
+    }
+    if (side == 1) // Right
+    {
+        portENTER_CRITICAL(&encMux);
+        long c = countR;
+        unsigned long e = LRUs;
+        portEXIT_CRITICAL(&encMux);
+
+        if (c - tcount3 > 0) // every new edge
+        {
+            if (tcount3 > 0) // skip the first edge of a move
+            {
+                ttaveR[tcount1] = (e - tdtR) / (c - tcount3);
+                tcount1++;
+            }
+            tdtR = e;
+            tcount3 = c;
+        }
+        if (tcount1 >= TurnN) // enough gaps: average them
+        {
+            double tsum = 0;
+
+            for (int i = 0; i < TurnN; i++)
+            {
+                tsum += ttaveR[i];
+            }
+
+            tgapR = tsum / TurnN;
+
+            rpm = 60000000.0 / (tgapR * cpr);
+
+            for (int i = 0; i < TurnN - 1; i++) // slide the window along
+            {
+                ttaveR[i] = ttaveR[i + 1];
+            }
+
+            tcount1--;
+        }
+        if (tgapR > 0 && t - tdtR > 1.5 * tgapR) // if there is no edge where there should be one the wheel is slowing
+        {
+            rpm = 60000000.0 / ((t - tdtR) * cpr);
+        }
+        if (t - tdtR > 1000000) // if wheel stopped then set rpm to 0
+        {
+            rpm = 0;
+            tgapR = 0;
+            tcount1 = 0;
+        }
+    }
+}
+
+bool PredictStop(int side, double exactTarg)
+{
+    portENTER_CRITICAL(&encMux); // Insert data every count 
+    long cnt;
+    if (side == 0) cnt = countL;
+    if (side == 1) cnt = countR;
+    unsigned long lastEdge;
+    if (side==0) lastEdge = LLUs;
+    if (side==1) lastEdge = LRUs;
+    portEXIT_CRITICAL(&encMux);
+
+    double rpm; // Per side rpm data passing
+    if(side==0) rpm = trpm_L; 
+    if(side==1) rpm = trpm_R;
+
+    if (rpm <= 0) return cnt >= exactTarg -0.5; // if there is no rpm data yet retern if the count is greater than a tuned value
+    
+    double gap = 60000000.0 / (rpm * cpr);  // time per count at the rpm
+    double sinceLast = micros() - lastEdge; // differental
+
+    double position = (cnt - 0.5) + sinceLast / gap; // redicted position
+
+    double coast = CoastTime / gap; // time it takes to stop
+
+    return position + coast >= exactTarg; // return when the speed and distance components are >= to the desired target.
+}
+
+void flushIR(unsigned long ms) //Mainly for testing if buffer too short for the IR to clear this will clear it and prevent another ir trigger
 {
     unsigned long start = millis();
     while (millis() - start < ms)
@@ -812,14 +1202,15 @@ void flushIR(unsigned long ms)
     }
 }
 
-void clearDisp()
+void clearDisp() // Just clears the display
 {
+    oLCD.setBackColor(RCB_PURPLE);
     oLCD.fillRect(0, 0, 200, 200, RCB_PURPLE);
 }
 
-void UpdateSCR(int type, double a, double b, double c, double d) // type:Option 1
+void UpdateSCR(int type, double a, double b, double c, double d) // type 1:option1 2:option2 moving 3:option2 found target, Inclused many doubles to pass as strings for data
 {
-    if (type == 1)
+    if (type == 1) //option1
     {
         String a1 = String(a);
         String b1 = String(b);
@@ -847,8 +1238,7 @@ void UpdateSCR(int type, double a, double b, double c, double d) // type:Option 
         oLCD.print("ERROR", CENTER, 128);
         oLCD.print(d1, CENTER, 148, 3);
     }
-    // For Option 2
-    if (type == 2)
+    if (type == 2) //option 2 moving
     {
 
         String a1 = String(a) + " CM";
@@ -863,26 +1253,38 @@ void UpdateSCR(int type, double a, double b, double c, double d) // type:Option 
         oLCD.print("TARGET ANGLE", CENTER, 76);
         oLCD.print(b1, CENTER, 90, 5);
     }
+    if (type == 3) //option 2 found target
+    {
+        clearDisp();
+        oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+        oLCD.print("TARGET FOUND", CENTER, 48);
+    }
 }
 
-int targetN(double value, int move) // Distance and CountsPerRevolution
+double excessN = 0;
+
+int targetN(double value, int move) // Distance and CountsPerRevolution No Delay
 {
-    if(move<=2)
+    if (move <= 2)
     {
-        return value / ((6.5 * 3.14159) / (cpr)); // b = dist/count
+        value = value / ((6.5 * 3.14159) / (cpr)); // b = dist/count
+        excessN = value - (int)value;
+        return value;
     }
     else
     {
-        double radians = value * (3.14159/180);
-        return (radians * 5.8097) / ((6.5 * 3.14159) / (cpr)); // b = dist/count
+        double radians = value * (3.14159 / 180);
+        value = (radians * 5.8097) / ((6.5 * 3.14159) / (cpr)); // b = dist/count
+        excessN = value - (int)value;
+        return value;
     }
 }
 
 // Testing stuff
 
-void Move(int type, int err, double adj, int duty)
+void Move(int type, int err, double adj, int duty) // type: 1 = Backwards, 2 = Forward, 3 = CCW, 4 = CW No Delay
 {
-    if (type == 1) // Forward
+    if (type == 1) // Backwards
     {
         digitalWrite(LeftMotorPPin, LOW);
         digitalWrite(LeftMotorEPin, HIGH);
@@ -891,7 +1293,7 @@ void Move(int type, int err, double adj, int duty)
         digitalWrite(RightMotorEPin, HIGH);
         ledcWrite(PWMRight, (duty + (adj * err)) * maxDutyCycle / 100.0);
     }
-    if (type == 2) // Backwards
+    if (type == 2) // Forward
     {
         digitalWrite(LeftMotorPPin, HIGH);
         digitalWrite(LeftMotorEPin, HIGH);
@@ -900,7 +1302,7 @@ void Move(int type, int err, double adj, int duty)
         digitalWrite(RightMotorEPin, HIGH);
         ledcWrite(PWMRight, (duty + (adj * err)) * maxDutyCycle / 100.0);
     }
-    if(type==3) //CW
+    if (type == 3) // CCW
     {
         digitalWrite(LeftMotorPPin, LOW);
         digitalWrite(LeftMotorEPin, HIGH);
@@ -909,7 +1311,7 @@ void Move(int type, int err, double adj, int duty)
         digitalWrite(RightMotorEPin, HIGH);
         ledcWrite(PWMRight, (duty + (adj * err)) * maxDutyCycle / 100.0);
     }
-    if(type==4) //CCW
+    if (type == 4) // CW
     {
         digitalWrite(LeftMotorPPin, HIGH);
         digitalWrite(LeftMotorEPin, HIGH);
@@ -920,7 +1322,7 @@ void Move(int type, int err, double adj, int duty)
     }
 }
 
-void Stop(bool &b)
+void Stop() // Stops all motors and PWM signals No Delay
 {
     digitalWrite(LeftMotorPPin, LOW);
     digitalWrite(LeftMotorEPin, LOW);
@@ -928,9 +1330,8 @@ void Stop(bool &b)
     digitalWrite(RightMotorPPin, LOW);
     digitalWrite(RightMotorEPin, LOW);
     ledcWrite(PWMRight, 0);
-    b = false;
 }
-void DutyAdj(double &adj, double &error, int count0, int count1)
+void DutyAdj(double &adj, double &error, int count0, int count1) // No Delay
 {
     error = count0 - count1;
     adj = 2 * error;
@@ -961,13 +1362,45 @@ void DutyAdj(double &adj, double &error, int count0, int count1)
 //         r = rHigh;
 //     return r;
 // }
+double lastTravel = 0;
 
-void odomitry(double dist, double duty, int move, int SCR, int debug)
+void Odomitry(int move)
 {
-    int targ = targetN(dist,move);
+    double Travel = ((countL + countR) / 2.0) * ((6.5 * 3.14159) / (cpr));
+    delta = Travel - lastTravel;
+    lastTravel = Travel;
+    if (move == 2)
+        CurrentDis += delta;
+    if (move == 1)
+        CurrentDis -= delta;
+    if (move == 3)
+        CurrentDir += (delta / 5.8097) / (3.14159 / 180);
+    if (move == 4)
+        CurrentDir -= (delta / 5.8097) / (3.14159 / 180);
+}
+
+void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // Some Delay move = 5 determine direction of turning
+{
+    ResetTurnRPM(); // NEW
+    if (move == 5)
+    {
+        if (dist >= 0)
+            move = 3;
+        if (dist < 0)
+        {
+            dist = -1 *dist;
+            move = 4;
+        }
+    }
+    lastTravel = 0;
+    int targ = targetN(dist, move);
+    double exactTarg = targ + excessN; // NEW: target with its fraction, e.g. 17.876
+    doneL = false;                     // NEW
+    doneR = false;
     bool b = true;
     error = 0;
     double adj = 0;
+    double boost = 20;
     int countoff;
     countL = 0;
     countR = 0;
@@ -978,16 +1411,34 @@ void odomitry(double dist, double duty, int move, int SCR, int debug)
     c = millis();
     while (b == true)
     {
-        double ramp = (millis() - c) / 1000;
+
+        double ramp = (millis() - c) / 150;
+        boost = boost - (boost * ramp);
         if (ramp > 1.0)
         {
+            boost = 0;
             ramp = 1.0;
         }
 
-        Move(move, 1, adj, duty * ramp);
+        Move(move, 1, adj, (duty * ramp) + boost);
+        if (doneL) ledcWrite(PWMLeft, 0);
+        if (doneR) ledcWrite(PWMRight, 0);
 
         ReadRPM(rpm_L, 0);
         ReadRPM(rpm_R, 1);
+        ReadTurnRPM(trpm_L, 0);
+        ReadTurnRPM(trpm_R, 1);
+
+        if (!doneL && PredictStop(0, exactTarg)) // NEW
+        {
+            doneL = true;
+            ledcWrite(PWMLeft, 0);
+        }
+        if (!doneR && PredictStop(1, exactTarg)) // NEW
+        {
+            doneR = true;
+            ledcWrite(PWMRight, 0);
+        }
 
         double gap = countL - countR * wheelRatio;
         int countoff = countR - countL;
@@ -1008,24 +1459,30 @@ void odomitry(double dist, double duty, int move, int SCR, int debug)
         if (t - dt_1 > 1000000 && SCR >= 1)
         {
             UpdateSCR(SCR, (duty + adj), countL, countR, countoff);
-            if(debug==1)
+            if (debug == 1)
             {
-            oLCD.setBackColor(0x0000);
-            oLCD.print(String(rpm_L), 5, 20);
-            oLCD.print(String(rpm_R), 5, 40);
-            oLCD.setBackColor(RCB_PURPLE);
+                oLCD.setBackColor(0x0000);
+                oLCD.print(String(rpm_L), 5, 20);
+                oLCD.print(String(rpm_R), 5, 40);
+                oLCD.setBackColor(RCB_PURPLE);
             }
             dt_1 = t;
         }
 
-        if (countR >= targ && countL >= targ)
-            Stop(b);
-        if (oIR.GetKeyPressed() == KEY_POWER)
-            Stop(b);
+        Odomitry(move);
+
+        if ((doneL && doneR)) // CHANGED: was countR >= targ && countL >= targ
+        {
+            Stop();
+            delay(200);               // coast counts arrive up to ~130 ms after Stop() in your logs
+            Odomitry(move);
+            b = false;
+        }
+        Break(b);
     }
-    if(SCR>=1)
+    if (SCR >= 1)
     {
-    UpdateSCR(SCR, duty + adj, countL, countR, countoff);
+        UpdateSCR(SCR, duty + adj, countL, countR, countoff);
     }
 }
 // *************************************************************************************
@@ -1035,18 +1492,17 @@ void odomitry(double dist, double duty, int move, int SCR, int debug)
 // *************************************************************************************
 // START: OPTION2 SUPPORT
 // *************************************************************************************
-
-void acuScan(double &ang, double &dist)
+void acuScan(double &ang, double &dist) // Needs configuring
 {
     Tdist_min_0 = 10000;
     Tdist_min_1 = 10000;
     TargetFound = false;
-    if (TargetFound == false)
+    while (TargetFound == false)
     {
-        for (int i = 0; i < 90; i++)
+        for (int i = 0; i < 90 && TargetFound == false; i++)
         {
 
-            servowrite(35, i + angle_offset, 1);
+            servowrite(35, i + angle_offset - 45, 1);
 
             if (i == 0)
             {
@@ -1057,7 +1513,7 @@ void acuScan(double &ang, double &dist)
                 delay(1);
             }
 
-                Tdist = calculateDistance(38, 37);
+            Tdist = calculateDistance(38, 37);
 
             if (Tdist < Tdist_min_0)
             {
@@ -1075,12 +1531,13 @@ void acuScan(double &ang, double &dist)
             oLCD.print(text1, 20, 40);
             oLCD.print(text2, 20, 60);
             oLCD.setBackColor(RCB_PURPLE);
+            Break(TargetFound);
         }
 
-        for (int i = 90; i > 0; i--)
+        for (int i = 90; i > 0 && TargetFound == false; i--)
         {
 
-            servowrite(35, i + angle_offset, 1);
+            servowrite(35, i + angle_offset - 45, 1);
 
             if (i == 0)
             {
@@ -1110,9 +1567,11 @@ void acuScan(double &ang, double &dist)
             oLCD.print(text1, 20, 40);
             oLCD.print(text2, 20, 60);
             oLCD.setBackColor(RCB_PURPLE);
+            Break(TargetFound);
         }
+        TargetFound = true;
     }
-    
+
     double AngleA = (Tangle_1 + Tangle_0) / 2;
     UpdateSCR(2, (Tdist_min_1 + Tdist_min_0) / 2, AngleA, 0, 0);
 
@@ -1126,71 +1585,70 @@ void acuScan(double &ang, double &dist)
     oLCD.print(text, 20, 40);
 }
 
-double relAngle(double ang)
+double relAngle(double ang, double exof,int reltype)
 {
-    ang = ang - angle_offset;
-    if(ang<0)
+    if (reltype == 0) // Regular offset to find real angle 
     {
-        ang = ang * -1;
+        return ang - angle_offset + exof;
     }
-    return ang;
+    if (reltype == 1) // Use for currentDir vs Actual target direction 
+    {
+        return (exof - angle_offset) - ang;
+    }
 }
 
 void FollowUltra()
 {
-    if (FoundTarget == false)
+    double dist;
+    double Target_Angle = 0;
+    while (FoundTarget == false)
     {
-        double dist;
-        double Target_Angle = 0;
-        while (FoundTarget == false)
+
+        acuScan(Target_Angle, dist); // Scaning for target and getting distance and angle
+
+        // Turn logic
+        if (dist <= 2) // State to stop if target found
         {
-
-            acuScan(Target_Angle, dist);
-
-            // Turn logic
-            if (dist <= 2)
+            op2 = false;
+            FoundTarget = true;
+        }
+        else if (dist > 150) // State to rotate if no target found
+        {
+            TranslateRobot(75, 30, 3, 0, 0); // turn left 75 degrees
+        }
+        else if (Target_Angle >= 80) // edge case on left side
+        {
+            TranslateRobot(45, 30, 3, 0, 0); // turn left 45 degrees
+        }
+        else if (Target_Angle <= 10) // edge case on right side
+        {
+            TranslateRobot(45, 30, 4, 0, 0); // turn right 45 degrees
+        }
+        else if (Target_Angle < 80 && Target_Angle > 10)
+        {
+            if (Target_Angle >= 55)
             {
-                FoundTarget = true;
+                TranslateRobot(relAngle(Target_Angle, 0, 0), 30, 3, 0, 0); // turn left x degrees
             }
-            if (dist > 130) //State to rotate if no target found
+            else if (Target_Angle <= 35)
             {
-                odomitry(75, 30, 3, 0, 0); // turn left 75 degrees
+                TranslateRobot(relAngle(Target_Angle, 0, 0), 30, 4, 0, 0); // turn right x degrees
             }
-            else if (Target_Angle >= 80) // edge case on left side
+            else if (Target_Angle < 55 && Target_Angle > 35)
             {
-                odomitry(relAngle(Target_Angle), 30, 3, 0, 0); // turn left 45 degrees
-            }
-            else if (Target_Angle <= 10) // edge case on right side
-            {
-                odomitry(relAngle(Target_Angle), 30, 4, 0, 0);// turn right 45 degrees
-            }
-            else if (Target_Angle < 80 && Target_Angle > 10)
-            {
-                if(Target_Angle >= 55)
+                if (dist > 20)
                 {
-                    odomitry(relAngle(Target_Angle), 30, 3, 0, 0); // turn left x degrees
-                    odomitry(dist, 30, 2, 0, 0); // go forward
+                    TranslateRobot(dist / 2, 30, 2, 0, 0); // go forward
                 }
-                if(Target_Angle <= 35)
+                else
                 {
-                    odomitry(relAngle(Target_Angle), 30, 4, 0, 0); // turn right x degrees
-                    odomitry(dist, 30, 2, 0, 0); // go forward
+                    TranslateRobot(dist, 30, 2, 0, 0); // go forward
                 }
-            }
-            if (oIR.GetKeyPressed() == KEY_POWER)
-            {
-                ShowDisplay(SC_MAIN, ' ', ' ');
-                break;
             }
         }
-    }
-
-    if (oIR.GetKeyPressed() == KEY_POWER)
-    {
-        ShowDisplay(SC_MAIN, ' ', ' ');
+        Break(FoundTarget);
     }
 }
-
 // *************************************************************************************
 // END: OPTION2 SUPPORT
 // *************************************************************************************
@@ -1203,6 +1661,35 @@ void FollowUltra()
 void DrawBox(int x1, int y1, int x2, int y2, uint32_t color)
 {
     oLCD.fillRoundRect(x1, y1, x2, y2, 3, color);
+}
+
+void PrintRadarScreen(bool initdisplay)
+{
+    // oLCD.LCDInitialize(LANDSCAPE, initdisplay);
+    DrawBox(0, 0, 250, 140, RCB_PURPLE);
+    int R = 75;
+    int r = 35;
+    oLCD.print("ANGLE ", 15, 10); //
+    oLCD.setBackColor(RCB_BLACK);
+    oLCD.printNumI(TargetDir, 65, 10, 3); //
+    oLCD.setBackColor(RCB_PURPLE);
+    oLCD.print(" DEGREES", 90, 10);
+    oLCD.print("DISTANCE ", 25, 30); //
+    oLCD.setBackColor(RCB_BLACK);
+    oLCD.printNumI(TargetDis, 90, 30, 3); //
+    oLCD.setBackColor(RCB_PURPLE);
+    oLCD.print(" CM", 115, 30);
+
+    printLine(120, 0, true);
+    printLine(120, 30, true);
+    printLine(120, 60, true);
+    printLine(120, 90, true);
+    printLine(120, 120, true);
+    printLine(120, 150, true);
+    printLine(120, 180, true);
+
+    oLCD.drawCircle(oLCD.width() / 2, oLCD.height(), r, RCB_WHITE);
+    oLCD.drawCircle(oLCD.width() / 2, oLCD.height(), R, RCB_WHITE);
 }
 
 void printLine(double distance, double angle, bool initial)
@@ -1228,53 +1715,15 @@ void printLine(double distance, double angle, bool initial)
     }
 }
 
-void ActualRadar()
+void ActualRadar(int radius, int i)
 {
-    for (int i = 15; i < 165; i = i + 2)
+    int angle = i;
+    if (radius > 120)
     {
-        int radius = i;
-        int angle = i;
-        if (radius > 120)
-        {
-            radius = 120;
-        }
-        printLine(radius, angle, false);
+        radius = 120;
     }
+    printLine(radius, angle, false);
 }
-
-void PrintRadarScreen(bool initdisplay)
-{
-    // oLCD.LCDInitialize(LANDSCAPE, initdisplay);
-    DrawBox(0, 0, 250, 140, RCB_PURPLE);
-    int Angle = 45;
-    int Distance = oLCD.width();
-    int R = 75;
-    int r = 35;
-    oLCD.print("ANGLE ", 15, 10); //
-    oLCD.setBackColor(RCB_BLACK);
-    oLCD.printNumI(Angle, 65, 10, 3); //
-    oLCD.setBackColor(RCB_PURPLE);
-    oLCD.print(" DEGREES", 90, 10);
-    oLCD.print("DISTANCE ", 25, 30); //
-    oLCD.setBackColor(RCB_BLACK);
-    oLCD.printNumI(Distance, 90, 30, 3); //
-    oLCD.setBackColor(RCB_PURPLE);
-    oLCD.print(" CM", 115, 30);
-
-    printLine(120, 0, true);
-    printLine(120, 30, true);
-    printLine(120, 60, true);
-    printLine(120, 90, true);
-    printLine(120, 120, true);
-    printLine(120, 150, true);
-    printLine(120, 180, true);
-
-    ActualRadar();
-
-    oLCD.drawCircle(oLCD.width() / 2, oLCD.height(), r, RCB_WHITE);
-    oLCD.drawCircle(oLCD.width() / 2, oLCD.height(), R, RCB_WHITE);
-}
-
 // *************************************************************************************
 // END: OPTION3 SUPPORT
 // *************************************************************************************
