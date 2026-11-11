@@ -124,28 +124,23 @@ const int TurnN = 2; // gaps averaged. 2 gaps = 3 counts. Keep it even: your gap
 
 double ttaveL[TurnN]; // Previous gaps between counts on the left wheel
 double ttaveR[TurnN]; // Previous gaps between counts on the right wheel
-int tcount0 = 0; // gaps stored, left
-int tcount1 = 0; // total counts
-long tcount2 = 0; // left count at the previous edge
-long tcount3 = 0; // right count at the previous edge
-double tdtL = 0; //time of last edge for the Left wheel
-double tdtR = 0; //time of last edge for the Right wheel
-double tgapL = 0; //average time per count for the Left wheel
-double tgapR = 0; //average time per count for the Right wheel
-double trpm_L = 0; //Left wheel rpm 
-double trpm_R = 0; //Right wheel rpm
+int tcount0 = 0;      // gaps stored, left
+int tcount1 = 0;      // total counts
+long tcount2 = 0;     // left count at the previous edge
+long tcount3 = 0;     // right count at the previous edge
+double tdtL = 0;      // time of last edge for the Left wheel
+double tdtR = 0;      // time of last edge for the Right wheel
+double tgapL = 0;     // average time per count for the Left wheel
+double tgapR = 0;     // average time per count for the Right wheel
+double trpm_L = 0;    // Left wheel rpm
+double trpm_R = 0;    // Right wheel rpm
 //------------------------------------------------------------------
 
-//PredictStop()
+// PredictStop()
 const double CoastTime = 50000; // Time it takes for wheel to stop after cutoff
-bool doneL = false; // Cuttof Left wheel
-bool doneR = false; // Cutoff Right wheel
+bool doneL = false;             // Cuttof Left wheel
+bool doneR = false;             // Cutoff Right wheel
 //------------------------------------------------------------------
-
-
-
-
-
 
 //
 //  Define protypes for functions
@@ -184,7 +179,7 @@ void IRAM_ATTR onRightEdge()
 }
 
 // Option 2
-double relAngle(double ang, double exof,int reltype);
+double relAngle(double ang, double exof, int reltype);
 // Option 3
 void PrintRadarScreen(bool initdisplay);
 void printLine(double distance, double angle, bool initial);
@@ -449,7 +444,7 @@ void Option4(char optionstate, char keypressed, bool initdisplay)
         // Code to align the robot
         TranslateRobot(22.62, 30, 3, 0, 0); // turn CCW
         delay(1000);
-        TranslateRobot(13, 30, 2, 0, 0);    // move forward
+        TranslateRobot(13, 30, 2, 0, 0); // move forward
 
         // Pause with switch 1
         while (digitalRead(sw1) == HIGH)
@@ -554,6 +549,8 @@ void setup()
     // Intializing the servos
     servowrite(35, 90, 3);
     servowrite(36, 0, 3);
+
+    DebugBegin();
 }
 
 //
@@ -657,7 +654,7 @@ void loop()
         ScanDone = false;
         ShowDisplay(SC_MAIN, ' ', ' ');
     }
-    if(last_key_processed == KEY_9)
+    if (last_key_processed == KEY_9)
     {
         firstcomp = false;
         thirdcomp = false;
@@ -665,41 +662,41 @@ void loop()
         TargetDis = 90;
         DutyCycle = 55;
     }
-    if(last_key_processed == KEY_5)
-    {
-        TranslateRobot(90,30,5,1,1);
-        delay(1000);
-        TranslateRobot(-90,30,5,1,1);
-        delay(1000);
-        TranslateRobot(90,30,5,1,1);
-        delay(1000);
-        TranslateRobot(-90,30,5,1,1);
-        delay(1000);
-        TranslateRobot(45,30,5,1,1);
-        delay(1000);
-        TranslateRobot(-45,30,5,1,1);
-        delay(1000);
-        TranslateRobot(45,30,5,1,1);
-        delay(1000);
-        TranslateRobot(-45,30,5,1,1);
-        delay(1000);
-        TranslateRobot(25,30,5,1,1);
-        delay(1000);
-        TranslateRobot(-25,30,5,1,1);
-        delay(1000);
-        TranslateRobot(25,30,5,1,1);
-        delay(1000);
-        TranslateRobot(-25,30,5,1,1);
-        delay(1000);
-        TranslateRobot(5,30,5,1,1);
-        delay(1000);
-        TranslateRobot(-5,30,5,1,1);
-        delay(1000);
-        TranslateRobot(5,30,5,1,1);
-        delay(1000);
-        TranslateRobot(-5,30,5,1,1);
-        delay(1000);
-    }
+    // if(last_key_processed == KEY_5)
+    // {
+    //     TranslateRobot(90,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(-90,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(90,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(-90,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(45,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(-45,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(45,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(-45,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(25,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(-25,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(25,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(-25,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(5,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(-5,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(5,30,5,1,1);
+    //     delay(1000);
+    //     TranslateRobot(-5,30,5,1,1);
+    //     delay(1000);
+    // }
     delay(1000);
 }
 //
@@ -946,7 +943,6 @@ void Break(bool &a)
             a = true;
         CascadeExit = true;
     }
-    //Serial.println(key);
 }
 
 // *************************************************************************************
@@ -962,9 +958,9 @@ void ReadRPM(double &rpm, int side) // Reads an rpm over a longer interval great
         unsigned long e = LLUs;
         portEXIT_CRITICAL(&encMux);
 
-        if (c - count2 > 0) // Every new edge
+        if (c - count2 > 0) // every new edge
         {
-            if (count2 > 0) // NEW: skip the first edge of a move; its interval starts at the previous move
+            if (count2 > 0) // skip the first edge of a move; its interval starts at the previous move
             {
                 taveL[count0] = (e - dtL) / (c - count2);
                 count0++;
@@ -1010,11 +1006,11 @@ void ReadRPM(double &rpm, int side) // Reads an rpm over a longer interval great
         unsigned long e = LRUs;
         portEXIT_CRITICAL(&encMux);
 
-        if (c - count3 > 0) // Every new edge
+        if (c - count3 > 0) // every new edge
         {
-            if (count3 > 0) // NEW: skip the first edge of a move; its interval starts at the previous move
+            if (count3 > 0) // skip the first edge of a move; its interval starts at the previous move
             {
-                taveL[count1] = (e - dtR) / (c - count3);
+                taveR[count1] = (e - dtR) / (c - count3);
                 count1++;
             }
             dtR = e;
@@ -1065,7 +1061,7 @@ void ResetTurnRPM() // call at the start of every move
     trpm_R = 0;
 }
 
-void ReadTurnRPM(double &rpm, int side) // Reads rpm over a short interval 
+void ReadTurnRPM(double &rpm, int side) // Reads rpm over a short interval
 {
     t = micros();
     if (side == 0) // Left
@@ -1166,34 +1162,43 @@ void ReadTurnRPM(double &rpm, int side) // Reads rpm over a short interval
     }
 }
 
+
+// Uses a smaller interval rpm reading to predict where the wheels are going to stop this is used in turning because it requires signifigant precision to acheve 15 degree turns accuratly
 bool PredictStop(int side, double exactTarg)
 {
-    portENTER_CRITICAL(&encMux); // Insert data every count 
-    long cnt;
-    if (side == 0) cnt = countL;
-    if (side == 1) cnt = countR;
-    unsigned long lastEdge;
-    if (side==0) lastEdge = LLUs;
-    if (side==1) lastEdge = LRUs;
+    portENTER_CRITICAL(&encMux); // Insert data every count
+    long cnt; // passing the total counts 
+    if (side == 0)
+        cnt = countL; 
+    if (side == 1)
+        cnt = countR;
+    unsigned long lastEdge; // setting the time sence the last count
+    if (side == 0)
+        lastEdge = LLUs;
+    if (side == 1)
+        lastEdge = LRUs;
     portEXIT_CRITICAL(&encMux);
 
     double rpm; // Per side rpm data passing
-    if(side==0) rpm = trpm_L; 
-    if(side==1) rpm = trpm_R;
+    if (side == 0)
+        rpm = trpm_L;
+    if (side == 1)
+        rpm = trpm_R;
 
-    if (rpm <= 0) return cnt >= exactTarg -0.5; // if there is no rpm data yet retern if the count is greater than a tuned value
-    
+    if (rpm <= 0)
+        return cnt >= exactTarg - 0.5; // if there is no rpm data yet retern if the count is greater than a tuned value
+
     double gap = 60000000.0 / (rpm * cpr);  // time per count at the rpm
     double sinceLast = micros() - lastEdge; // differental
 
-    double position = (cnt - 0.5) + sinceLast / gap; // redicted position
+    double position = (cnt - 0.5) + sinceLast / gap; // predicted position
 
-    double coast = CoastTime / gap; // time it takes to stop
+    double coast = CoastTime / gap; // distance per time divided by time gives distance of coast of the robot. 
 
     return position + coast >= exactTarg; // return when the speed and distance components are >= to the desired target.
 }
 
-void flushIR(unsigned long ms) //Mainly for testing if buffer too short for the IR to clear this will clear it and prevent another ir trigger
+void flushIR(unsigned long ms) // Mainly for testing if buffer too short for the IR to clear this will clear it and prevent another ir trigger
 {
     unsigned long start = millis();
     while (millis() - start < ms)
@@ -1210,7 +1215,7 @@ void clearDisp() // Just clears the display
 
 void UpdateSCR(int type, double a, double b, double c, double d) // type 1:option1 2:option2 moving 3:option2 found target, Inclused many doubles to pass as strings for data
 {
-    if (type == 1) //option1
+    if (type == 1) // option1
     {
         String a1 = String(a);
         String b1 = String(b);
@@ -1238,7 +1243,7 @@ void UpdateSCR(int type, double a, double b, double c, double d) // type 1:optio
         oLCD.print("ERROR", CENTER, 128);
         oLCD.print(d1, CENTER, 148, 3);
     }
-    if (type == 2) //option 2 moving
+    if (type == 2) // option 2 moving
     {
 
         String a1 = String(a) + " CM";
@@ -1253,7 +1258,7 @@ void UpdateSCR(int type, double a, double b, double c, double d) // type 1:optio
         oLCD.print("TARGET ANGLE", CENTER, 76);
         oLCD.print(b1, CENTER, 90, 5);
     }
-    if (type == 3) //option 2 found target
+    if (type == 3) // option 2 found target
     {
         clearDisp();
         oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
@@ -1273,7 +1278,7 @@ int targetN(double value, int move) // Distance and CountsPerRevolution No Delay
     }
     else
     {
-        double radians = value * (3.14159 / 180);
+        double radians = value * (3.14159 / 180); // convert deg to radians
         value = (radians * 5.8097) / ((6.5 * 3.14159) / (cpr)); // b = dist/count
         excessN = value - (int)value;
         return value;
@@ -1381,27 +1386,28 @@ void Odomitry(int move)
 
 void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // Some Delay move = 5 determine direction of turning
 {
-    ResetTurnRPM(); // NEW
+    ResetTurnRPM();
     if (move == 5)
     {
         if (dist >= 0)
             move = 3;
         if (dist < 0)
         {
-            dist = -1 *dist;
+            dist = -1 * dist;
             move = 4;
         }
     }
+    bool turning = (move == 3 || move == 4); // predictive stop is only used for turns
     lastTravel = 0;
     int targ = targetN(dist, move);
-    double exactTarg = targ + excessN; // NEW: target with its fraction, e.g. 17.876
-    doneL = false;                     // NEW
+    double exactTarg = targ + excessN;
+    doneL = false;
     doneR = false;
     bool b = true;
     error = 0;
     double adj = 0;
     double boost = 20;
-    int countoff;
+    int countoff = 0;
     countL = 0;
     countR = 0;
     count0 = 0;
@@ -1421,27 +1427,41 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
         }
 
         Move(move, 1, adj, (duty * ramp) + boost);
-        if (doneL) ledcWrite(PWMLeft, 0);
-        if (doneR) ledcWrite(PWMRight, 0);
+        if (doneL)
+
+            ledcWrite(PWMLeft, 0);
+        if (doneR)
+            ledcWrite(PWMRight, 0);
 
         ReadRPM(rpm_L, 0);
         ReadRPM(rpm_R, 1);
-        ReadTurnRPM(trpm_L, 0);
-        ReadTurnRPM(trpm_R, 1);
+        if (turning)
+        {
+            ReadTurnRPM(trpm_L, 0);
+            ReadTurnRPM(trpm_R, 1);
 
-        if (!doneL && PredictStop(0, exactTarg)) // NEW
-        {
-            doneL = true;
-            ledcWrite(PWMLeft, 0);
+            if (!doneL && PredictStop(0, exactTarg))
+            {
+                doneL = true;
+                ledcWrite(PWMLeft, 0);
+            }
+            if (!doneR && PredictStop(1, exactTarg))
+            {
+                doneR = true;
+                ledcWrite(PWMRight, 0);
+            }
         }
-        if (!doneR && PredictStop(1, exactTarg)) // NEW
+        else // CHANGED: straight drives stop when both wheels reach the target count
         {
-            doneR = true;
-            ledcWrite(PWMRight, 0);
+            if (countL >= targ && countR >= targ)
+            {
+                doneL = true;
+                doneR = true;
+            }
         }
 
         double gap = countL - countR * wheelRatio;
-        int countoff = countR - countL;
+        countoff = countR - countL;
         error = rpm_L - rpm_R * wheelRatio;
 
         adj = 2 * gap + 0.1 * error;
@@ -1474,7 +1494,7 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
         if ((doneL && doneR)) // CHANGED: was countR >= targ && countL >= targ
         {
             Stop();
-            delay(200);               // coast counts arrive up to ~130 ms after Stop() in your logs
+            delay(200); // wait for counts to stop
             Odomitry(move);
             b = false;
         }
@@ -1585,13 +1605,13 @@ void acuScan(double &ang, double &dist) // Needs configuring
     oLCD.print(text, 20, 40);
 }
 
-double relAngle(double ang, double exof,int reltype)
+double relAngle(double ang, double exof, int reltype)
 {
-    if (reltype == 0) // Regular offset to find real angle 
+    if (reltype == 0) // Regular offset to find real angle
     {
         return ang - angle_offset + exof;
     }
-    if (reltype == 1) // Use for currentDir vs Actual target direction 
+    if (reltype == 1) // Use for currentDir vs Actual target direction
     {
         return (exof - angle_offset) - ang;
     }
