@@ -231,6 +231,10 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
         oLCD.setBackColor(RCB_BLACK);
         oLCD.printNumI(change, CENTER, 32, 3, ' ');
         aval = String(change);
+        if (change == 0)
+        {
+            aval = "";
+        }
     }
     else if (optionstate == 'B' && aval.toInt() < 40 || optionstate == 'B' && aval.toInt() > 70)
     {
@@ -1743,6 +1747,8 @@ void ActualRadar(int radius, int i)
         radius = 120;
     }
     printLine(radius, angle, false);
+    oLCD.drawCircle(oLCD.width() / 2, oLCD.height(), 35, RCB_WHITE);
+    oLCD.drawCircle(oLCD.width() / 2, oLCD.height(), 75, RCB_WHITE);
 }
 // *************************************************************************************
 // END: OPTION3 SUPPORT
