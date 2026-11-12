@@ -1,127 +1,119 @@
 #include "lcdhelperv2.h"
 #include "irhelper.h"
 #include <math.h>
+ 
 // B allows us to use colors
 #define RCB_RED 0x001F
 #define RCB_WHITE 0xFFFF
 #define RCB_BLACK 0x0000
 #define RCB_PURPLE 0x780F
-
-portMUX_TYPE encMux = portMUX_INITIALIZER_UNLOCKED; // This is to read the interrupt values with the RPM function to minimize skewed data.
-
-//
-//  Create an instance of the lcdhelper class named oLCD
-//
+ 
+// *************************************************************************************
+// BEGIN: GLOBAL VARIABLES
+// *************************************************************************************
+ 
+// Hardware objects
 lcdhelper oLCD(ILI9163_4L, 3, 2, 9, 10, 7);
-//
-//  Declare a sprite so we can display a rotated label on the TFT.
-//
 TFT_eSprite spr = TFT_eSprite(&oLCD); // Sprite object
-//
-//  Create an instance of irhelper class named oIR.
-//
 irhelper oIR;
-// Get width of TFT display in pixels
+portMUX_TYPE encMux = portMUX_INITIALIZER_UNLOCKED; // This is to read the interrupt values with the RPM function to minimize skewed data.
+//------------------------------------------------------------------
+ 
+// Screen size and spacing
 int xScreen = 1;
-// Get height of TFT display in pixels
 int yScreen = 1;
-// Define a spacer to represent margins and spacing between elements.
 int mScreen = 2;
-// B creates booleans that stay false and prevent options 2 and 4 until they are okay to run.
-bool firstcomp = true;
-bool thirdcomp = true;
-bool FoundTarget = false; // used in Option 2
-bool TargetFound = false; // used in Option 3
-bool ScanDone = false;
-bool nav = true;
-
-// B define pins
-const int RightOutputPin = 8;
+//------------------------------------------------------------------
+ 
+// Pins
 const int LeftOutputPin = 10;
+const int RightOutputPin = 8;
+const int LeftMotorEPin = 46;
+const int RightMotorEPin = 14;
+const int LeftMotorPPin = 12;
+const int RightMotorPPin = 13;
 const int sw1 = 18;
 const int sw2 = 17;
 const int sw3 = 16;
 const int sw4 = 15;
 const int servo1 = 35;
 const int servo2 = 36;
-const int echo = 37;
 const int trig = 38;
-const int LeftMotorEPin = 46;
-const int RightMotorEPin = 14;
-const int LeftMotorPPin = 12;
-const int RightMotorPPin = 13;
+const int echo = 37;
+//------------------------------------------------------------------
+ 
+// setup(), Move() and Stop()
 const int PWMLeft = 1;
 const int PWMRight = 2;
-// A
 const int pwmFrequency = 496;
 const int pwmResolution = 8;
 const int maxDutyCycle = (int)pow(2, pwmResolution) - 1;
-// B
-double wheelDiameter = 65.31; // mm
-double countsPerRevolution = 20;
-double wheelCircumference = (wheelDiameter) * (3.14159);
-double revolutionstotarget = 100 / (wheelCircumference / 10);
-double counttotarget = countsPerRevolution * revolutionstotarget;
-double error = 0;
-const double wheelRatio = 1.0037; // right / left effective diameter, tuned from drift
+//------------------------------------------------------------------
+ 
+// loop(), ShowDisplay(), CheckExit() and Break()
+bool firstcomp = true;
+bool thirdcomp = true;
+bool CascadeExit = false;
+//------------------------------------------------------------------
+ 
+// Option1() and Option4()
+int DutyCycle;
+//------------------------------------------------------------------
+ 
+// Option2() and FollowUltra()
+bool FoundTarget = false; // used in Option 2
+double dt = 0;
+//------------------------------------------------------------------
+ 
+// Option3(), acuScan() and relAngle()
 double angle_offset = 90;
-
+ 
 double Tdist = 10000;
 double Tdist_min_0 = 10000;
 double Tdist_min_1 = 10000;
 int Tangle_0;
 int Tangle_1;
-
-int DutyCycle;
-
-unsigned long t = 0;
-unsigned long c = 0;
-
-int cpr = 40;
-
-double dt_1 = 0;
-
-volatile long countL = 0;
-volatile long countR = 0;
-
-volatile unsigned long LLUs = 0;     // Last left microseconds
-volatile unsigned long LRUs = 0;     // Last right microseconds
-const unsigned long EncDeUS = 20000; // tune for your encoders
-
-int count0 = 0;
-int count1 = 0;
-int count2 = 0;
-int count3 = 0;
-
-double taveL[20]; // time interval over the previous 10 counts
-double taveR[20]; //
-
-double dtL = 0; // Time differental for the RPM measureing
-double dtR = 0;
-
-double rpm_L = 0;
-double rpm_R = 0;
-
+bool TargetFound = false; // used in Option 3
+bool ScanDone = false;
+//------------------------------------------------------------------
+ 
+// Option3(), Option4() and Odomitry()
+bool nav = true;
 double TargetDir = 0;
 double TargetDis = 0;
 double CurrentDir = 0;
 double CurrentDis = 0;
-
-double delta = 0;
-double deltaANG = 0;
-
-bool CascadeExit = false;
-
-bool op1 = true;
-bool op2 = true;
-bool op3 = true;
-bool op4 = true;
-
-double dt = 0;
-
+//------------------------------------------------------------------
+ 
+// targetN(), Odomitry(), ReadTurnRPM() and PredictStop()
+int cpr = 40;
+//------------------------------------------------------------------
+ 
+// onLeftEdge() and onRightEdge()
+const unsigned long EncDeUS = 5000; // tune for your encoders
+ 
+volatile long countL = 0;
+volatile long countR = 0;
+volatile unsigned long LLUs = 0; // Last left microseconds
+volatile unsigned long LRUs = 0; // Last right microseconds
+//------------------------------------------------------------------
+ 
+// ReadRPM()
+double taveL[20]; // time interval over the previous 10 counts
+double taveR[20];
+int count0 = 0;
+int count1 = 0;
+int count2 = 0;
+int count3 = 0;
+double dtL = 0; // Time differental for the RPM measureing
+double dtR = 0;
+double rpm_L = 0;
+double rpm_R = 0;
+//------------------------------------------------------------------
+ 
 // ResetTurnRPM() and ReadTurnRPM()
 const int TurnN = 2; // gaps averaged. 2 gaps = 3 counts. Keep it even: your gaps alternate short/long.
-
+ 
 double ttaveL[TurnN]; // Previous gaps between counts on the left wheel
 double ttaveR[TurnN]; // Previous gaps between counts on the right wheel
 int tcount0 = 0;      // gaps stored, left
@@ -135,16 +127,41 @@ double tgapR = 0;     // average time per count for the Right wheel
 double trpm_L = 0;    // Left wheel rpm
 double trpm_R = 0;    // Right wheel rpm
 //------------------------------------------------------------------
-
+ 
 // PredictStop()
 const double CoastTime = 50000; // Time it takes for wheel to stop after cutoff
-bool doneL = false;             // Cuttof Left wheel
-bool doneR = false;             // Cutoff Right wheel
+ 
+bool doneL = false; // Cuttof Left wheel
+bool doneR = false; // Cutoff Right wheel
 //------------------------------------------------------------------
+ 
+// targetN()
+double excessN = 0;
+//------------------------------------------------------------------
+ 
+// Odomitry()
+double lastTravel = 0;
+double delta = 0;
+//------------------------------------------------------------------
+ 
+// TranslateRobot()
+const double wheelRatio = 1.0037; // right / left effective diameter, tuned from drift
+
+int countoff = 0;
+double error = 0;
+unsigned long c = 0;
+unsigned long t = 0;
+double dt_1 = 0;
+//------------------------------------------------------------------
+ 
+// *************************************************************************************
+// END: GLOBAL VARIABLES
+// *************************************************************************************
 
 //
 //  Define protypes for functions
 //
+
 void ShowDisplay(screen val, char optionstate, char keypressed, bool initdisplay = false);
 // Option 1
 int targetN(double dist);
@@ -158,6 +175,14 @@ void Stop();
 void DutyAdj(double &adj, double &error, int count0, int count1);
 void TranslateRobot(double dist, double duty, int move, int SCR, int debug);
 bool CheckExit();
+// Option 2
+double relAngle(double ang, double exof, int reltype);
+// Option 3
+void PrintRadarScreen(bool initdisplay);
+void printLine(double distance, double angle, bool initial);
+void ActualRadar(int radius, int i);
+// Option 4
+void DrawBox(int x, int y, int width, int height, uint32_t color);
 
 void IRAM_ATTR onLeftEdge()
 {
@@ -177,15 +202,6 @@ void IRAM_ATTR onRightEdge()
         LRUs = now;
     }
 }
-
-// Option 2
-double relAngle(double ang, double exof, int reltype);
-// Option 3
-void PrintRadarScreen(bool initdisplay);
-void printLine(double distance, double angle, bool initial);
-void ActualRadar(int radius, int i);
-// Option 4
-void DrawBox(int x, int y, int width, int height, uint32_t color);
 
 // *************************************************************************************
 // BEGIN: USER FUNCTION
@@ -337,14 +353,14 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
             oLCD.setBackColor(RCB_BLACK);
             oLCD.printNumI(i, 65, 10, 3);
             oLCD.printNumI(Tdist, 90, 30, 3);
-            // oLCD.setBackColor(RCB_BLACK);
-            //  String text = String(i);
-            //  String text1 = String(Tdist_min_0);
-            //  String text2 = String(Tdist);
-            //  oLCD.setBackColor(0x0000);
-            //  oLCD.print(text, 20, 20);
-            //  oLCD.print(text1, 20, 40);
-            //  oLCD.print(text2, 20, 60);
+            //oLCD.setBackColor(RCB_BLACK);
+            // String text = String(i);
+            // String text1 = String(Tdist_min_0);
+            // String text2 = String(Tdist);
+            // oLCD.setBackColor(0x0000);
+            // oLCD.print(text, 20, 20);
+            // oLCD.print(text1, 20, 40);
+            // oLCD.print(text2, 20, 60);
         }
 
         Tdist = 10000;
@@ -378,25 +394,25 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
             }
             oLCD.setBackColor(RCB_BLACK);
             oLCD.printNumI(i, 65, 10, 3);
-            // oLCD.setBackColor(RCB_BLACK);
+            //oLCD.setBackColor(RCB_BLACK);
             oLCD.printNumI(Tdist, 90, 30, 3);
-            // oLCD.setBackColor(RCB_BLACK);
-            //  String text = String(i);
-            //  String text1 = String(Tdist_min_1);
-            //  String text2 = String(Tdist);
-            //  oLCD.setBackColor(0x0000);
-            //  oLCD.print(text, 20, 20);
-            //  oLCD.print(text1, 20, 40);
-            //  oLCD.print(text2, 20, 60);
+            //oLCD.setBackColor(RCB_BLACK);
+            // String text = String(i);
+            // String text1 = String(Tdist_min_1);
+            // String text2 = String(Tdist);
+            // oLCD.setBackColor(0x0000);
+            // oLCD.print(text, 20, 20);
+            // oLCD.print(text1, 20, 40);
+            // oLCD.print(text2, 20, 60);
         }
 
         TargetDis = (Tdist_min_1 + Tdist_min_0) / 2;
         TargetDir = (Tangle_1 + Tangle_0) / 2;
         oLCD.setBackColor(RCB_BLACK);
         oLCD.printNumI(TargetDir, 65, 10, 3);
-        // oLCD.setBackColor(RCB_BLACK);
+        //oLCD.setBackColor(RCB_BLACK);
         oLCD.printNumI(TargetDis, 90, 30, 3);
-        // oLCD.setBackColor(RCB_BLACK);
+        oLCD.setBackColor(RCB_PURPLE);
         if (TargetDis <= 120 && TargetDis >= 5)
         {
             TargetFound = true;
@@ -448,15 +464,20 @@ void Option4(char optionstate, char keypressed, bool initdisplay)
         oLCD.print(DispDis, CENTER, 56);
 
         // Code to align the robot
-        TranslateRobot(22.62, 30, 3, 0, 0); // turn CCW
+        //TranslateRobot(22.62, 30, 3, 0, 0); // turn CCW
+        TranslateRobot(90, 30, 3, 0, 0); // turn CCW
         delay(1000);
-        TranslateRobot(13, 30, 2, 0, 0); // move forward
+        TranslateRobot(90-13.4965637, 30, 4, 0, 0); // turn CW
+        delay(1000);
+        TranslateRobot(10.7375284, 30, 2, 0, 0); // move forward
+        //TranslateRobot(13, 30, 2, 0, 0); // move forward
 
         // Pause with switch 1
         while (digitalRead(sw1) == HIGH)
         {
             delay(50);
         }
+        delay(1000);
 
         // Code to turn the robot
         TranslateRobot(relAngle(CurrentDir, TargetDir, 1), 30, 5, 0, 0);
@@ -478,9 +499,10 @@ void Option4(char optionstate, char keypressed, bool initdisplay)
         {
             delay(50);
         }
+        delay(1000);
 
         // Code to move towards Target
-        TranslateRobot(TargetDis, DutyCycle, 2, 0, 0);
+        TranslateRobot(TargetDis+4.48, DutyCycle, 2, 0, 0);
 
         // Intiazlies Third Screen
         oLCD.LCDInitialize(PORTRAIT, initdisplay);
@@ -571,7 +593,6 @@ void loop()
     // menu key is pressed.
     if (last_key_processed == KEY_MENU)
     {
-        op2 = true;
         nav = true;
         ScanDone = false;
         ShowDisplay(SC_MAIN, ' ', ' ');
@@ -609,10 +630,6 @@ void loop()
             else if (last_key_processed == KEY_RETURN)
             {
                 ShowDisplay((screen)oLCD.SCREEN_STATE, 'B', oIR.TranslateKey(last_key_processed), false);
-            }
-            else if (last_key_processed == KEY_FORWARD)
-            {
-                oLCD.print("KELLLPPPP", 20, 60);
             }
         }
         else if (oLCD.SCREEN_STATE == SC_SUB2 && firstcomp == false)
@@ -656,10 +673,6 @@ void loop()
     if (CascadeExit)
     {
         CascadeExit = false; // reset so the next option can run
-        op4 = true;
-        op3 = true;
-        op2 = true;
-        op1 = true;
         nav = true;
         ScanDone = false;
         ShowDisplay(SC_MAIN, ' ', ' ');
@@ -719,12 +732,18 @@ void ShowDisplay(screen val, char optionstate, char keypressed, bool initdisplay
     oLCD.OPTION_STATE = optionstate;
     int selectedpid = 0;
 
+    oLCD.LCDInitialize(LANDSCAPE, initdisplay);
+    oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+    oLCD.setBackColor(RCB_PURPLE);
+
     if (val == SC_MAIN)
     {
         //
         //  Initialize the display
         //
         oLCD.LCDInitialize(LANDSCAPE, initdisplay);
+        oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
+        oLCD.setBackColor(RCB_PURPLE);
         oLCD.print("SELECT OPTION", 10, 10);
         oLCD.print("1. CALIBRATE DRIVE", 10, 24);
         if (firstcomp == true)
@@ -1180,13 +1199,15 @@ void ReadTurnRPM(double &rpm, int side) // Reads rpm over a short interval
     }
 }
 
+//double OdoAngCorrection = 0;
+
 // Uses a smaller interval rpm reading to predict where the wheels are going to stop this is used in turning because it requires signifigant precision to acheve 15 degree turns accuratly
 bool PredictStop(int side, double exactTarg)
 {
     portENTER_CRITICAL(&encMux); // Insert data every count
-    long cnt;                    // passing the total counts
+    long cnt; // passing the total counts 
     if (side == 0)
-        cnt = countL;
+        cnt = countL; 
     if (side == 1)
         cnt = countR;
     unsigned long lastEdge; // setting the time sence the last count
@@ -1211,6 +1232,11 @@ bool PredictStop(int side, double exactTarg)
     double position = (cnt - 0.5) + sinceLast / gap; // predicted position
 
     double coast = CoastTime / gap; // distance per time divided by time gives distance of coast of the robot.
+    
+    //OdoAngCorrection = CurrentDir - ();
+
+    //double degrees = value / (3.14159 / 180); // convert deg to radians
+    //value = (radians * 5.8097) / ((6.5 * 3.14159) / (cpr)); // b = dist/count
 
     return position + coast >= exactTarg; // return when the speed and distance components are >= to the desired target.
 }
@@ -1228,6 +1254,7 @@ void clearDisp() // Just clears the display
 {
     oLCD.setBackColor(RCB_PURPLE);
     oLCD.fillRect(0, 0, 200, 200, RCB_PURPLE);
+    oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
 }
 
 void UpdateSCR(int type, double a, double b, double c, double d) // type 1:option1 2:option2 moving 3:option2 found target, Inclused many doubles to pass as strings for data
@@ -1283,8 +1310,6 @@ void UpdateSCR(int type, double a, double b, double c, double d) // type 1:optio
     }
 }
 
-double excessN = 0;
-
 int targetN(double value, int move) // Distance and CountsPerRevolution No Delay
 {
     if (move <= 2)
@@ -1295,7 +1320,7 @@ int targetN(double value, int move) // Distance and CountsPerRevolution No Delay
     }
     else
     {
-        double radians = value * (3.14159 / 180);               // convert deg to radians
+        double radians = value * (3.14159 / 180); // convert deg to radians
         value = (radians * 5.8097) / ((6.5 * 3.14159) / (cpr)); // b = dist/count
         excessN = value - (int)value;
         return value;
@@ -1366,27 +1391,7 @@ void DutyAdj(double &adj, double &error, int count0, int count1) // No Delay
     }
 }
 
-// double WheelRatioAt(double rpm)
-// {
-//     double r = ratioSlow + (ratioFast - ratioSlow) * (rpm - rpmSlow) / (rpmFast - rpmSlow);
-
-//     double rLow = ratioSlow;
-//     double rHigh = ratioFast;
-//     if (rLow > rHigh)       // in case the fast ratio ends up smaller
-//     {
-//         rLow = ratioFast;
-//         rHigh = ratioSlow;
-//     }
-
-//     if (r < rLow)
-//         r = rLow;
-//     if (r > rHigh)
-//         r = rHigh;
-//     return r;
-// }
-double lastTravel = 0;
-
-void Odomitry(int move)
+void Odomitry(int move, double exactTarg)
 {
     double Travel = ((countL + countR) / 2.0) * ((6.5 * 3.14159) / (cpr));
     delta = Travel - lastTravel;
@@ -1415,43 +1420,44 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
         }
     }
     bool turning = (move == 3 || move == 4); // predictive stop is only used for turns
-    lastTravel = 0;
+
     int targ = targetN(dist, move);
+
     double exactTarg = targ + excessN;
+    double adj = 0;
+    
+    double boost = 65;
+    if(turning) boost = 40;
+
+    bool b = true;
     doneL = false;
     doneR = false;
-    bool b = true;
+
     error = 0;
-    double adj = 0;
-    double boost = 20;
-    int countoff = 0;
+    lastTravel = 0;
     countL = 0;
     countR = 0;
     count0 = 0;
     count1 = 0;
     count2 = 0;
     count3 = 0;
+    rpm_L = 0;
+    rpm_R = 0;
+
     c = millis();
     while (b == true)
     {
-        unsigned long last_key_processed;
-        // Determine which key was pressed.
-        last_key_processed = oIR.GetKeyPressed();
-        if (last_key_processed == KEY_POWER)
-        {
-            oLCD.print("KELLLPPPP", 20, 60);
-        }
+
         double ramp = (millis() - c) / 150;
-        boost = boost - (boost * ramp);
         if (ramp > 1.0)
         {
-            boost = 0;
             ramp = 1.0;
         }
+        double kick = boost * (1.0 - ramp);
 
-        Move(move, 1, adj, (duty * ramp) + boost);
+        Move(move, 1, adj, (duty * ramp) + kick);
+
         if (doneL)
-
             ledcWrite(PWMLeft, 0);
         if (doneR)
             ledcWrite(PWMRight, 0);
@@ -1474,7 +1480,7 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
                 ledcWrite(PWMRight, 0);
             }
         }
-        else // CHANGED: straight drives stop when both wheels reach the target count
+        else // straight drives stop when both wheels reach the target count
         {
             if (countL >= targ && countR >= targ)
             {
@@ -1483,11 +1489,11 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
             }
         }
 
-        double gap = countL - countR * wheelRatio;
+        double gap_0 = countL - countR * wheelRatio;
         countoff = countR - countL;
         error = rpm_L - rpm_R * wheelRatio;
 
-        adj = 2 * gap + 0.1 * error;
+        adj = 2 * gap_0 + 0.1 * error;
 
         if (adj > 10 || adj < -10)
         {
@@ -1512,13 +1518,13 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
             dt_1 = t;
         }
 
-        Odomitry(move);
+        Odomitry(move,0);
 
         if ((doneL && doneR)) // CHANGED: was countR >= targ && countL >= targ
         {
             Stop();
             delay(200); // wait for counts to stop
-            Odomitry(move);
+            Odomitry(move,0);
             b = false;
         }
         Break(b);
@@ -1566,16 +1572,16 @@ void acuScan(double &ang, double &dist, bool debug) // Needs configuring
                     Tangle_0 = i;
                 }
             }
-            if (debug == true)
+            if(debug==true)
             {
-                String text = String(i);
-                String text1 = String(Tdist_min_0);
-                String text2 = String(Tdist);
-                oLCD.setBackColor(0x0000);
-                oLCD.print(text, 20, 20);
-                oLCD.print(text1, 20, 40);
-                oLCD.print(text2, 20, 60);
-                oLCD.setBackColor(RCB_PURPLE);
+            String text = String(i);
+            String text1 = String(Tdist_min_0);
+            String text2 = String(Tdist);
+            oLCD.setBackColor(0x0000);
+            oLCD.print(text, 20, 20);
+            oLCD.print(text1, 20, 40);
+            oLCD.print(text2, 20, 60);
+            oLCD.setBackColor(RCB_PURPLE);
             }
             Break(TargetFound);
         }
@@ -1604,18 +1610,19 @@ void acuScan(double &ang, double &dist, bool debug) // Needs configuring
                     Tangle_1 = i;
                 }
             }
-            if (debug == true)
+            if(debug==true)
             {
-                String text = String(i);
-                String text1 = String(Tdist_min_1);
-                String text2 = String(Tdist);
-                oLCD.setBackColor(0x0000);
-                oLCD.print(text, 20, 20);
-                oLCD.print(text1, 20, 40);
-                oLCD.print(text2, 20, 60);
-                oLCD.setBackColor(RCB_PURPLE);
+            String text = String(i);
+            String text1 = String(Tdist_min_1);
+            String text2 = String(Tdist);
+            oLCD.setBackColor(0x0000);
+            oLCD.print(text, 20, 20);
+            oLCD.print(text1, 20, 40);
+            oLCD.print(text2, 20, 60);
+            oLCD.setBackColor(RCB_PURPLE);
             }
             Break(TargetFound);
+            
         }
         TargetFound = true;
     }
@@ -1625,13 +1632,14 @@ void acuScan(double &ang, double &dist, bool debug) // Needs configuring
 
     ang = (Tangle_1 + Tangle_0) / 2;
     dist = (Tdist_min_1 + Tdist_min_0) / 2;
-    if (debug == true)
+
+    if(debug==true)
     {
-        String text = String((Tdist_min_1 + Tdist_min_0) / 2);
-        String text1 = String(AngleA);
-        oLCD.setBackColor(0x0000);
-        oLCD.print(text1, 20, 20);
-        oLCD.print(text, 20, 40);
+    String text = String((Tdist_min_1 + Tdist_min_0) / 2);
+    String text1 = String(AngleA);
+    oLCD.setBackColor(0x0000);
+    oLCD.print(text1, 20, 20);
+    oLCD.print(text, 20, 40);
     }
 }
 
@@ -1654,12 +1662,11 @@ void FollowUltra()
     while (FoundTarget == false)
     {
 
-        acuScan(Target_Angle, dist, false); // Scaning for target and getting distance and angle
+        acuScan(Target_Angle, dist,false); // Scaning for target and getting distance and angle
 
         // Turn logic
         if (dist <= 2) // State to stop if target found
         {
-            op2 = false;
             FoundTarget = true;
         }
         else if (dist > 150) // State to rotate if no target found
@@ -1786,6 +1793,3 @@ void ActualRadar(int radius, int i)
 // *************************************************************************************
 // END: OPTION4 SUPPORT
 // *************************************************************************************
-
-
-//make sure to move firstdone and remove the redundant function that is like the loop
