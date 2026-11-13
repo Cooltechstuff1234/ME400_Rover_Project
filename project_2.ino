@@ -719,93 +719,14 @@ void loop()
         ScanDone = false;
         ShowDisplay(SC_MAIN, ' ', ' ');
     }
-    if (last_key_processed == KEY_9)
-    {
-        firstcomp = false;
-        thirdcomp = false;
-        TargetDir = 70;
-        TargetDis = 90;
-        DutyCycle = 55;
-    }
-    if (last_key_processed == KEY_5)
-    {
-        crt = true;
-        if (crt == true)
-        {
-            accuTurn(13.4965637,30,3); //turn CCW 15 degrees
-            delay(1000);
-            TranslateRobot(10.7375284, 30, 2, 0, 0); // move forward
-        
-            // for(int i = 0; i < 10; i++)
-            // {
-            //     TurnData(10,30,3,50);
-            //     delay(5000);
-            // }
-            // delay(30000);
-            // for(int i = 0; i < 10; i++)
-            // {
-            //     TurnData(10,30,4,50);
-            //     delay(5000);
-            // }
-            // delay(30000);
-            // for(int i = 0; i < 10; i++)
-            // {
-            //     TurnData(10,30,3,25);
-            //     delay(5000);
-            // }
-            // delay(30000);
-            // for(int i = 0; i < 10; i++)
-            // {
-            //     TurnData(10,30,4,25);
-            //     delay(5000);
-            // }
-            // delay(20000);
-            // for(int i = 0; i < 20; i++)
-            // {
-            //     accuTurn(10,30,3,25);
-            //     delay(5000);
-            // }
-            // delay(20000);
-            // for(int i = 0; i < 20; i++)
-            // {
-            //     accuTurn(10,30,4,25);
-            //     delay(5000);
-            // }
-            flushIR(1000);
-        }
-        //     TranslateRobot(90,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(-90,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(90,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(-90,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(45,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(-45,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(45,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(-45,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(25,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(-25,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(25,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(-25,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(5,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(-5,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(5,30,5,1,1);
-        //     delay(1000);
-        //     TranslateRobot(-5,30,5,1,1);
-        //     delay(1000);
-    }
+    // if (last_key_processed == KEY_9)
+    // {
+    //     firstcomp = false;
+    //     thirdcomp = false;
+    //     TargetDir = 70;
+    //     TargetDis = 90;
+    //     DutyCycle = 55;
+    // }
     delay(1000);
 }
 //
