@@ -21,7 +21,6 @@ portMUX_TYPE encMux = portMUX_INITIALIZER_UNLOCKED; // This is to read the inter
 
 bool crt = true;
 
-
 // Screen size and spacing
 int xScreen = 1;
 int yScreen = 1;
@@ -235,7 +234,7 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
     char lastkeypressed;
 
     oLCD.LCDInitialize(PORTRAIT, initdisplay);
-
+    // intial diplay for enterying the duty cycle
     oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
     sprintf(text, "DUTY CYCLE");
     oLCD.print(text, CENTER, 15);
@@ -249,7 +248,7 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
         clearText(CENTER, 32, 20, RCB_BLACK);
         Serial.println("help");
     }
-    else if (keypressed == oIR.TranslateKey(KEY_BACK))
+    else if (keypressed == oIR.TranslateKey(KEY_BACK)) // backspace command
     {
         int change = (aval.toDouble() / 10);
         clearText(CENTER, 32, 20, RCB_BLACK);
@@ -261,7 +260,7 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
             aval = "";
         }
     }
-    else if (optionstate == 'B' && aval.toInt() < 40 || optionstate == 'B' && aval.toInt() > 70)
+    else if (optionstate == 'B' && aval.toInt() < 40 || optionstate == 'B' && aval.toInt() > 70) // code for entering values
     {
         clearText(CENTER, 32, 20, RCB_BLACK);
         oLCD.setBackColor(RCB_BLACK);
@@ -297,7 +296,7 @@ void Option1(char optionstate, char keypressed, bool initdisplay)
         oLCD.setBackColor(RCB_BLACK);
         oLCD.printNumI(aval.toInt(), CENTER, 32, 3, ' ');
     }
-    else if (optionstate == 'B')
+    else if (optionstate == 'B') // duty cycle test
     {
         DutyCycle = aval.toInt();
         TranslateRobot(100, aval.toInt(), 2, 1, 0);
@@ -330,7 +329,7 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
         clearDisp();
         oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
         PrintRadarScreen(initdisplay);
-        for (int i = 15; i < 165; i += 2)
+        for (int i = 15; i < 165; i += 2) // scan to left increments by 2 degrees
         {
 
             servowrite(35, i, 3);
@@ -345,6 +344,11 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
             }
 
             Tdist = calculateDistance(38, 37);
+
+            if (Tdist >= 120) // checks for if the distance exceeds scan range
+            {
+                Tdist = 120;
+            }
 
             if (Tdist < Tdist_min_0)
             {
@@ -358,10 +362,10 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
             {
                 ActualRadar(Tdist, i);
             }
-            oLCD.setTextPadding(oLCD.textWidth("000", 2));    
+            oLCD.setTextPadding(oLCD.textWidth("000", 2));
             oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
             oLCD.setBackColor(RCB_BLACK);
-            oLCD.setTextPadding(oLCD.textWidth("000", 2));    
+            oLCD.setTextPadding(oLCD.textWidth("000", 2));
             oLCD.printNumI(i, 65, 10);
             oLCD.printNumI(Tdist, 90, 30);
             oLCD.setBackColor(RCB_PURPLE);
@@ -369,7 +373,7 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
         }
 
         Tdist = 10000;
-        for (int i = 165; i > 15; i--)
+        for (int i = 165; i > 15; i--) // scan to left increments by 1 degrees
         {
 
             servowrite(35, i, 3);
@@ -385,6 +389,11 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
 
             Tdist = calculateDistance(38, 37);
 
+            if (Tdist >= 120) // checks for if the distance exceeds scan range
+            {
+                Tdist = 120;
+            }
+
             if (Tdist < Tdist_min_1)
             {
                 if (Tdist >= 5)
@@ -397,7 +406,7 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
             {
                 ActualRadar(Tdist, i);
             }
-            oLCD.setTextPadding(oLCD.textWidth("000", 2));    
+            oLCD.setTextPadding(oLCD.textWidth("000", 2));
             oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
             oLCD.setBackColor(RCB_BLACK);
             oLCD.printNumI(i, 65, 10);
@@ -410,7 +419,7 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
         TargetDir = (Tangle_1 + Tangle_0) / 2;
         oLCD.setBackColor(RCB_BLACK);
         oLCD.setTextColor(RCB_WHITE, RCB_PURPLE);
-        oLCD.setTextPadding(oLCD.textWidth("000", 2));    
+        oLCD.setTextPadding(oLCD.textWidth("000", 2));
         oLCD.printNumI(TargetDir, 65, 10, 3);
         oLCD.printNumI(TargetDis, 90, 30, 3);
         oLCD.setBackColor(RCB_PURPLE);
@@ -611,8 +620,6 @@ void setup()
     // Intializing the servos
     servowrite(35, 90, 3);
     servowrite(36, 0, 3);
-
-    DebugBegin();
 }
 
 //
@@ -666,7 +673,7 @@ void loop()
                 ShowDisplay((screen)oLCD.SCREEN_STATE, 'B', oIR.TranslateKey(last_key_processed), false);
             }
         }
-        else if (oLCD.SCREEN_STATE == SC_SUB2 && firstcomp == false)
+        else if (oLCD.SCREEN_STATE == SC_SUB2 && firstcomp == false) // logic for accessing op 2
         {
             Serial.print("Sub2 trace = ");
             Serial.println(last_key_processed);
@@ -679,7 +686,7 @@ void loop()
                 ShowDisplay(SC_SUB2, ' ', oIR.TranslateKey(last_key_processed), false);
             }
         }
-        else if (oLCD.SCREEN_STATE == SC_SUB3)
+        else if (oLCD.SCREEN_STATE == SC_SUB3) // logic for accessing op 3
         {
             Serial.print("Sub3 trace = ");
             Serial.println(last_key_processed);
@@ -692,7 +699,7 @@ void loop()
                 ShowDisplay(SC_SUB3, ' ', oIR.TranslateKey(last_key_processed), false);
             }
         }
-        else if (oLCD.SCREEN_STATE == SC_SUB4 && firstcomp == false && thirdcomp == false)
+        else if (oLCD.SCREEN_STATE == SC_SUB4 && firstcomp == false && thirdcomp == false) // logic for accessing op 4
         {
             if (last_key_processed == KEY_RETURN)
             {
@@ -720,10 +727,10 @@ void loop()
         TargetDis = 90;
         DutyCycle = 55;
     }
-     if(last_key_processed == KEY_5)
-     {
+    if (last_key_processed == KEY_5)
+    {
         crt = true;
-        if(crt==true)
+        if (crt == true)
         {
             accuTurn(13.4965637,30,3); //turn CCW 15 degrees
             delay(1000);
@@ -766,39 +773,39 @@ void loop()
             // }
             flushIR(1000);
         }
-    //     TranslateRobot(90,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(-90,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(90,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(-90,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(45,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(-45,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(45,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(-45,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(25,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(-25,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(25,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(-25,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(5,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(-5,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(5,30,5,1,1);
-    //     delay(1000);
-    //     TranslateRobot(-5,30,5,1,1);
-    //     delay(1000);
-     }
+        //     TranslateRobot(90,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(-90,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(90,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(-90,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(45,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(-45,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(45,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(-45,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(25,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(-25,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(25,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(-25,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(5,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(-5,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(5,30,5,1,1);
+        //     delay(1000);
+        //     TranslateRobot(-5,30,5,1,1);
+        //     delay(1000);
+    }
     delay(1000);
 }
 //
@@ -1028,6 +1035,7 @@ void ProcessKeyPress(unsigned long int result)
 
 bool CheckExit()
 {
+    // Checks whether not the break was activated or not
     if (!CascadeExit)
     {
         unsigned long key = oIR.GetKeyPressed();
@@ -1042,6 +1050,7 @@ bool CheckExit()
 
 void Break(bool &a, int type)
 {
+    // Used to safley break while loops
     unsigned long key = oIR.GetKeyPressed();
     if (type == 1 || type == 2)
     {
@@ -1355,12 +1364,12 @@ void UpdateSCR(int type, double a, double b, double c, double d) // type 1:optio
 
         if (d > 0)
         {
-            d1 = "+" + String(d);
+            d1 = "+" + String(c - b);
         }
 
         if (d < 0)
         {
-            d1 = String(d);
+            d1 = String(c - b);
         }
 
         clearDisp();
@@ -1606,7 +1615,7 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
             Odomitry(move, 0);
             b = false;
         }
-        Break(b,1);
+        Break(b, 1);
     }
     if (SCR >= 1)
     {
@@ -1620,7 +1629,7 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
 // *************************************************************************************
 // START: OPTION2 SUPPORT
 // *************************************************************************************
-void acuScan(double &ang, double &dist, bool debug) // Needs configuring
+void acuScan(double &ang, double &dist, bool debug) // Needs configuring scan function
 {
     Tdist_min_0 = 10000;
     Tdist_min_1 = 10000;
@@ -1662,7 +1671,7 @@ void acuScan(double &ang, double &dist, bool debug) // Needs configuring
                 oLCD.print(text2, 20, 60);
                 oLCD.setBackColor(RCB_PURPLE);
             }
-            Break(TargetFound,2);
+            Break(TargetFound, 2);
         }
 
         for (int i = 165; i > 14 && TargetFound == false; i--)
@@ -1700,7 +1709,7 @@ void acuScan(double &ang, double &dist, bool debug) // Needs configuring
                 oLCD.print(text2, 20, 60);
                 oLCD.setBackColor(RCB_PURPLE);
             }
-            Break(TargetFound,2);
+            Break(TargetFound, 2);
         }
         TargetFound = true;
     }
@@ -1779,12 +1788,12 @@ void FollowUltra() //Target_Angle: 0 = right, 90 = straight, 180 = left
 //
 //  Option 3: Function to draw a box.
 //
-void DrawBox(int x1, int y1, int x2, int y2, uint32_t color)
+void DrawBox(int x1, int y1, int x2, int y2, uint32_t color) // makes boxes
 {
     oLCD.fillRoundRect(x1, y1, x2, y2, 3, color);
 }
 
-void PrintRadarScreen(bool initdisplay)
+void PrintRadarScreen(bool initdisplay) // prints the radar screen
 {
     // oLCD.LCDInitialize(LANDSCAPE, initdisplay);
     clearDisp();
@@ -1793,14 +1802,14 @@ void PrintRadarScreen(bool initdisplay)
     int r = 35;
     oLCD.print("ANGLE ", 15, 10); //
     oLCD.setBackColor(RCB_BLACK);
-    oLCD.setTextPadding(oLCD.textWidth("000", 2));    
+    oLCD.setTextPadding(oLCD.textWidth("000", 2));
     oLCD.printNumI(TargetDir, 65, 10); //
     oLCD.setTextPadding(0);
     oLCD.setBackColor(RCB_PURPLE);
     oLCD.print(" DEGREES", 90, 10);
     oLCD.print("DISTANCE ", 25, 30); //
     oLCD.setBackColor(RCB_BLACK);
-    oLCD.setTextPadding(oLCD.textWidth("000", 2));    
+    oLCD.setTextPadding(oLCD.textWidth("000", 2));
     oLCD.printNumI(TargetDis, 90, 30); //
     oLCD.setTextPadding(0);
     oLCD.setBackColor(RCB_PURPLE);
@@ -1818,7 +1827,7 @@ void PrintRadarScreen(bool initdisplay)
     oLCD.drawCircle(oLCD.width() / 2, oLCD.height(), R, RCB_WHITE);
 }
 
-void printLine(double distance, double angle, bool initial)
+void printLine(double distance, double angle, bool initial) // prints the lines on the radar
 {
     double radians = angle * (PI / 180);
     distance = distance * .625;
@@ -1841,7 +1850,7 @@ void printLine(double distance, double angle, bool initial)
     }
 }
 
-void ActualRadar(int radius, int i)
+void ActualRadar(int radius, int i) // updates the radars with new data
 {
     int angle = i;
     if (radius > 120)
