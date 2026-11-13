@@ -149,7 +149,7 @@ double delta = 0;
 // TranslateRobot()
 const double wheelRatio = 1.0037; // right / left effective diameter, tuned from drift
 
-long countoff = 0;
+int countoff = 0;
 double error = 0;
 unsigned long c = 0;
 unsigned long t = 0;
@@ -718,9 +718,9 @@ void loop()
         crt = true;
         if (crt == true)
         {
-            accuTurn(15, 30, 3); 
-            
-            // for testing or joey's tweak corner 
+            accuTurn(15, 30, 3);
+
+            // for testing or joey's tweak corner
             // turn CCW 15 degrees
             // for(int i = 0; i < 20; i++)
             // {
@@ -1353,12 +1353,12 @@ void UpdateSCR(int type, double a, double b, double c, double d) // type 1:optio
 
         if (d > 0)
         {
-            d1 = "+" + String(d);
+            d1 = "+" + String(c - b);
         }
 
         if (d < 0)
         {
-            d1 = String(d);
+            d1 = String(c - b);
         }
 
         clearDisp();
@@ -1676,7 +1676,7 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
 
         if (t - dt_1 > 1000000 && SCR >= 1)
         {
-            UpdateSCR(SCR, (duty + adj), (int)countL, (int)countR, (int)countoff);
+            UpdateSCR(SCR, (duty + adj), countL, countR, countoff);
             if (debug == 1)
             {
                 oLCD.setBackColor(0x0000);
@@ -1700,7 +1700,7 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
     }
     if (SCR >= 1)
     {
-        UpdateSCR(SCR, duty + adj, (int)countL, (int)countR, (int)countoff);
+        UpdateSCR(SCR, duty + adj, countL, countR, countoff);
     }
 }
 // *************************************************************************************
