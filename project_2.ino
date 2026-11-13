@@ -1063,9 +1063,6 @@ void Break(bool &a, int type)
             CascadeExit = true;
         }
     }
-    if (type == 3)
-    {
-    }
 }
 
 // *************************************************************************************
@@ -1487,98 +1484,6 @@ void DutyAdj(double &adj, double &error, int count0, int count1) // No Delay
     }
 }
 
-void Odomitry(int move, double exactTarg)
-{
-    double Travel = ((countL + countR) / 2.0) * ((6.5 * 3.14159) / (cpr));
-    delta = Travel - lastTravel;
-    lastTravel = Travel;
-    if (move == 2)
-        CurrentDis += delta;
-    if (move == 1)
-        CurrentDis -= delta;
-    if (move == 3)
-        CurrentDir += (delta / 5.8097) / (3.14159 / 180);
-    if (move == 4)
-        CurrentDir -= (delta / 5.8097) / (3.14159 / 180);
-}
-
-void accuTurn(double ang, double duty, int move) // Tuned and measured values from my robot that can go back and forth to approxamate a specific angle For now its just a test
-{
-    unsigned long delaytime = 0;
-    bool b = true;
-    double boost = 50;
-    c = micros();
-    int t1 = 0;
-    int t2 = 0;
-    int t3 = 0;
-    //double CCW100 = 10.13;
-    //double CW100 = 10.57;
-    double CCW50 = 2.49;
-    double CW50 = 2.45;
-    double CCW25 = 1.10;
-    double CW25 = 1.01;
-    double Odo = 0;
-    double jump = 0;
-    if(move==3)
-    {
-        t1 = (int)(ang / CCW50);
-        t2 = (int)((ang - t1*CCW50) / CCW25 + 0.5f);
-    }
-    if(move==4)
-    {
-        t1 = (int)(ang / CW50);
-        t2 = (int)((ang - t1*CW50) / CW25 + 0.5f);
-    }
-    for(int i = 0; i < (t1 + t2); i++)
-    {
-        delay(500);
-        if(i < t1)
-            delaytime = 50;
-        else
-            delaytime = 25;
-
-        c = micros();                                   // moved here from the top
-        double ramp = (micros() - c) / 150000;
-        if (ramp > 1.0)
-            ramp = 1.0;
-        double kick = boost * (1.0 - ramp);
-
-        Move(move, 1, 0, (duty * ramp) + kick);
-        delay(delaytime);
-        Stop();
-    }
-    if(move==3) // update the Odometry for accurate turning
-    {
-        CurrentDir += (t1*CCW50 + t2*CCW25);
-    }
-    else if (move==4)
-    {
-        CurrentDir += -(t1*CCW50 + t2*CCW25);
-    }
-}
-
-void TurnData(double ang, double duty,int move, unsigned long delaytime)
-{
-    double boost = 50;
-    bool b = true;
-    while(b==true)
-    {
-        c = micros();                                   // moved here from the top
-        double ramp = (micros() - c) / 150000;
-        if (ramp > 1.0)
-            ramp = 1.0;
-        double kick = boost * (1.0 - ramp);
-
-        Move(move, 1, 0, (duty * ramp) + kick);
-        delay(delaytime);
-        if(b==true)
-        {
-            Stop();
-            b = false;
-        }
-    }
-}
-
 void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // Some Delay move = 5 determine direction of turning
 {
     ResetTurnRPM();
@@ -1828,51 +1733,41 @@ double relAngle(double ang, double exof, int reltype)
     }
 }
 
-void FollowUltra() // follow logic
+void FollowUltra() //Target_Angle: 0 = right, 90 = straight, 180 = left
 {
-    double dist;
+    double dist = 10000;
     double Target_Angle = 0;
-    while (FoundTarget == false)
+    FoundTarget = false;
+    while (FoundTarget == false && !CheckExit())
     {
 
-        acuScan(Target_Angle, dist, false); // Scaning for target and getting distance and angle
+        acuScan(Target_Angle, dist, false); // Scaning for target
+        if (CascadeExit) break;
+        double turn = Target_Angle - 90; // Target_Angle - 90
 
-        // Turn logic
-        if (dist <= 2) // State to stop if target found
+        if (dist <= 2) // stop if target found
         {
             FoundTarget = true;
         }
-        else if (Target_Angle >= 80) // edge case on left side
+        else if (turn < -10) // target is to the RIGHT
         {
-            TranslateRobot(35, 30, 3, 0, 0); // turn left 45 degrees
+            TranslateRobot(-turn, 30, 4, 0, 0); // turn CW by Target_Angle - 90
         }
-        else if (Target_Angle <= 10) // edge case on right side
+        else if (turn > 10) // target is to the LEFT
         {
-            TranslateRobot(35, 30, 4, 0, 0); // turn right 45 degrees
+            TranslateRobot(turn, 30, 3, 0, 0); // turn CCW by Target_Angle - 90
         }
-        else if (Target_Angle < 80 && Target_Angle > 10)
+        else // move forward
         {
-            if (Target_Angle >= 55)
+            if (dist > 20)
             {
-                TranslateRobot(relAngle(0, Target_Angle, 0), 30, 3, 0, 0); // turn left x degrees
+                TranslateRobot(dist / 2, 45, 2, 0, 0); // move halfway
             }
-            else if (Target_Angle <= 35)
+            else
             {
-                TranslateRobot(relAngle(0, Target_Angle, 0), 30, 4, 0, 0); // turn right x degrees
-            }
-            else if (Target_Angle < 55 && Target_Angle > 35)
-            {
-                if (dist > 20)
-                {
-                    TranslateRobot(dist / 2, 30, 2, 0, 0); // go forward
-                }
-                else
-                {
-                    TranslateRobot(dist, 30, 2, 0, 0); // go forward
-                }
+                TranslateRobot(dist, 45, 2, 0, 0); // final dist
             }
         }
-        Break(FoundTarget,2);
     }
 }
 // *************************************************************************************
@@ -1963,7 +1858,97 @@ void ActualRadar(int radius, int i)
 // *************************************************************************************
 // START: OPTION4 SUPPORT
 // *************************************************************************************
+void Odomitry(int move, double exactTarg)
+{
+    double Travel = ((countL + countR) / 2.0) * ((6.5 * 3.14159) / (cpr));
+    delta = Travel - lastTravel;
+    lastTravel = Travel;
+    if (move == 2)
+        CurrentDis += delta;
+    if (move == 1)
+        CurrentDis -= delta;
+    if (move == 3)
+        CurrentDir += (delta / 5.8097) / (3.14159 / 180);
+    if (move == 4)
+        CurrentDir -= (delta / 5.8097) / (3.14159 / 180);
+}
 
+void accuTurn(double ang, double duty, int move) // Tuned and measured values from my robot that can go back and forth to approxamate a specific angle For now its just a test
+{
+    unsigned long delaytime = 0;
+    bool b = true;
+    double boost = 50;
+    c = micros();
+    int t1 = 0;
+    int t2 = 0;
+    int t3 = 0;
+    //double CCW100 = 10.13;
+    //double CW100 = 10.57;
+    double CCW50 = 2.49;
+    double CW50 = 2.45;
+    double CCW25 = 1.10;
+    double CW25 = 1.01;
+    double Odo = 0;
+    double jump = 0;
+    if(move==3)
+    {
+        t1 = (int)(ang / CCW50);
+        t2 = (int)((ang - t1*CCW50) / CCW25 + 0.5f);
+    }
+    if(move==4)
+    {
+        t1 = (int)(ang / CW50);
+        t2 = (int)((ang - t1*CW50) / CW25 + 0.5f);
+    }
+    for(int i = 0; i < (t1 + t2); i++)
+    {
+        delay(500);
+        if(i < t1)
+            delaytime = 50;
+        else
+            delaytime = 25;
+
+        c = micros();                                   // moved here from the top
+        double ramp = (micros() - c) / 150000;
+        if (ramp > 1.0)
+            ramp = 1.0;
+        double kick = boost * (1.0 - ramp);
+
+        Move(move, 1, 0, (duty * ramp) + kick);
+        delay(delaytime);
+        Stop();
+    }
+    if(move==3) // update the Odometry for accurate turning
+    {
+        CurrentDir += (t1*CCW50 + t2*CCW25);
+    }
+    else if (move==4)
+    {
+        CurrentDir += -(t1*CCW50 + t2*CCW25);
+    }
+}
+
+void TurnData(double ang, double duty,int move, unsigned long delaytime)
+{
+    double boost = 50;
+    bool b = true;
+    while(b==true)
+    {
+        c = micros();                                   // moved here from the top
+        double ramp = (micros() - c) / 150000;
+        if (ramp > 1.0)
+            ramp = 1.0;
+        double kick = boost * (1.0 - ramp);
+
+        Move(move, 1, 0, (duty * ramp) + kick);
+        delay(delaytime);
+        if(b==true)
+        {
+            Stop();
+            b = false;
+        }
+    }
+}
 // *************************************************************************************
 // END: OPTION4 SUPPORT
 // *************************************************************************************
