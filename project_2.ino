@@ -149,7 +149,7 @@ double delta = 0;
 // TranslateRobot()
 const double wheelRatio = 1.0037; // right / left effective diameter, tuned from drift
 
-int countoff = 0;
+long countoff = 0;
 double error = 0;
 unsigned long c = 0;
 unsigned long t = 0;
@@ -345,7 +345,7 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
 
             Tdist = calculateDistance(38, 37);
 
-            if (Tdist > 120) // checks for if the distance exceeds scan range
+            if (Tdist >= 120) // checks for if the distance exceeds scan range
             {
                 Tdist = 120;
             }
@@ -389,7 +389,7 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
 
             Tdist = calculateDistance(38, 37);
 
-            if (Tdist > 120) // checks for if the distance exceeds scan range
+            if (Tdist >= 120) // checks for if the distance exceeds scan range
             {
                 Tdist = 120;
             }
@@ -606,8 +606,6 @@ void setup()
     // Intializing the servos
     servowrite(35, 90, 3);
     servowrite(36, 0, 3);
-
-    DebugBegin();
 }
 
 //
@@ -1678,7 +1676,7 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
 
         if (t - dt_1 > 1000000 && SCR >= 1)
         {
-            UpdateSCR(SCR, (duty + adj), countL, countR, countoff);
+            UpdateSCR(SCR, (duty + adj), (int)countL, (int)countR, (int)countoff);
             if (debug == 1)
             {
                 oLCD.setBackColor(0x0000);
@@ -1702,7 +1700,7 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
     }
     if (SCR >= 1)
     {
-        UpdateSCR(SCR, duty + adj, countL, countR, countoff);
+        UpdateSCR(SCR, duty + adj, (int)countL, (int)countR, (int)countoff);
     }
 }
 // *************************************************************************************
