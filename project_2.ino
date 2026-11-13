@@ -462,6 +462,7 @@ void Option3(char optionstate, char keypressed, bool initdisplay)
 //
 void Option4(char optionstate, char keypressed, bool initdisplay)
 {
+    double turn = 0;
     CurrentDir = 0;
     CurrentDis = 0;
     if (nav == true)
@@ -477,13 +478,9 @@ void Option4(char optionstate, char keypressed, bool initdisplay)
         oLCD.print(DispDis, CENTER, 56);
 
         // Code to align the robot
-        // TranslateRobot(22.62, 30, 3, 0, 0); // turn CCW
-        TranslateRobot(90, 30, 3, 0, 0); // turn CCW
-        delay(1000);
-        TranslateRobot(90 - 13.4965637, 30, 4, 0, 0); // turn CW
+        accuTurn(13.4965637,30,3); //turn CCW to match the angle of where the sensor was
         delay(1000);
         TranslateRobot(10.7375284, 30, 2, 0, 0); // move forward
-        // TranslateRobot(13, 30, 2, 0, 0); // move forward
 
         // Pause with switch 1
         while (digitalRead(sw1) == HIGH)
@@ -493,7 +490,24 @@ void Option4(char optionstate, char keypressed, bool initdisplay)
         delay(1000);
 
         // Code to turn the robot
-        TranslateRobot(relAngle(CurrentDir, TargetDir, 1), 30, 5, 0, 0);
+        turn = relAngle(13.4965637, TargetDir, 1);
+        Serial.println(turn);
+        if(turn < 10 && turn > -10)
+        {
+            if(turn<0) 
+            {
+                turn = turn * -1;
+                accuTurn(turn,30,4);
+            }
+            else if(turn>0)
+            {
+                accuTurn(turn,30,3);
+            }
+        }
+        else
+        {
+            TranslateRobot(turn,30,5,0,0);
+        }
 
         // Intiazlies second Screen
         oLCD.LCDInitialize(PORTRAIT, initdisplay);
@@ -513,9 +527,9 @@ void Option4(char optionstate, char keypressed, bool initdisplay)
             delay(50);
         }
         delay(1000);
-
+        CurrentDis = 0;
         // Code to move towards Target
-        TranslateRobot(TargetDis + 4.48, DutyCycle, 2, 0, 0);
+        TranslateRobot(TargetDis + 2, DutyCycle, 2, 0, 0);
 
         // Intiazlies Third Screen
         oLCD.LCDInitialize(PORTRAIT, initdisplay);
@@ -711,28 +725,31 @@ void loop()
         crt = true;
         if(crt==true)
         {
-            accuTurn(15,30,3); //turn CCW 15 degrees
-            // for(int i = 0; i < 20; i++)
+            accuTurn(13.4965637,30,3); //turn CCW 15 degrees
+            delay(1000);
+            TranslateRobot(10.7375284, 30, 2, 0, 0); // move forward
+        
+            // for(int i = 0; i < 10; i++)
             // {
-            //     accuTurn(10,30,3,100);
+            //     TurnData(10,30,3,50);
             //     delay(5000);
             // }
-            // delay(20000);
-            // for(int i = 0; i < 20; i++)
+            // delay(30000);
+            // for(int i = 0; i < 10; i++)
             // {
-            //     accuTurn(10,30,4,100);
+            //     TurnData(10,30,4,50);
             //     delay(5000);
             // }
-            // delay(20000);
-            // for(int i = 0; i < 20; i++)
+            // delay(30000);
+            // for(int i = 0; i < 10; i++)
             // {
-            //     accuTurn(10,30,3,50);
+            //     TurnData(10,30,3,25);
             //     delay(5000);
             // }
-            // delay(20000);
-            // for(int i = 0; i < 20; i++)
+            // delay(30000);
+            // for(int i = 0; i < 10; i++)
             // {
-            //     accuTurn(10,30,4,50);
+            //     TurnData(10,30,4,25);
             //     delay(5000);
             // }
             // delay(20000);
@@ -747,7 +764,7 @@ void loop()
             //     accuTurn(10,30,4,25);
             //     delay(5000);
             // }
-            // flushIR(1000);
+            flushIR(1000);
         }
     //     TranslateRobot(90,30,5,1,1);
     //     delay(1000);
@@ -1489,75 +1506,75 @@ void accuTurn(double ang, double duty, int move) // Tuned and measured values fr
 {
     unsigned long delaytime = 0;
     bool b = true;
-    double boost = 90;
+    double boost = 50;
     c = micros();
     int t1 = 0;
     int t2 = 0;
     int t3 = 0;
-    double CCW100 = 10.13;
-    double CW100 = 10.57;
-    double CCW50 = 4.18;
-    double CW50 = 3.96;
-    double CCW25 = 1.50;
-    double CW25 = 1.55;
+    //double CCW100 = 10.13;
+    //double CW100 = 10.57;
+    double CCW50 = 2.49;
+    double CW50 = 2.45;
+    double CCW25 = 1.10;
+    double CW25 = 1.01;
     double Odo = 0;
     double jump = 0;
     if(move==3)
     {
         t1 = (int)(ang / CCW50);
-        t2 - (int)((ang - t1*CCW50) / CCW25 + 0.5f);
+        t2 = (int)((ang - t1*CCW50) / CCW25 + 0.5f);
     }
     if(move==4)
     {
-        t1 = (int)(ang / CCW50);
-        t2 - (int)((ang - t1*CCW50) / CCW25 + 0.5f);
+        t1 = (int)(ang / CW50);
+        t2 = (int)((ang - t1*CW50) / CW25 + 0.5f);
     }
     for(int i = 0; i < (t1 + t2); i++)
     {
         delay(500);
-        if(move==3)
+        if(i < t1)
+            delaytime = 50;
+        else
+            delaytime = 25;
+
+        c = micros();                                   // moved here from the top
+        double ramp = (micros() - c) / 150000;
+        if (ramp > 1.0)
+            ramp = 1.0;
+        double kick = boost * (1.0 - ramp);
+
+        Move(move, 1, 0, (duty * ramp) + kick);
+        delay(delaytime);
+        Stop();
+    }
+    if(move==3) // update the Odometry for accurate turning
+    {
+        CurrentDir += (t1*CCW50 + t2*CCW25);
+    }
+    else if (move==4)
+    {
+        CurrentDir += -(t1*CCW50 + t2*CCW25);
+    }
+}
+
+void TurnData(double ang, double duty,int move, unsigned long delaytime)
+{
+    double boost = 50;
+    bool b = true;
+    while(b==true)
+    {
+        c = micros();                                   // moved here from the top
+        double ramp = (micros() - c) / 150000;
+        if (ramp > 1.0)
+            ramp = 1.0;
+        double kick = boost * (1.0 - ramp);
+
+        Move(move, 1, 0, (duty * ramp) + kick);
+        delay(delaytime);
+        if(b==true)
         {
-            if(i<t1)
-            {
-                delaytime = 50;
-            }
-            else
-            {
-                delaytime = 25;
-            }
-            double ramp = (micros() - c) / 150000;
-            if (ramp > 1.0)
-            {
-                ramp = 1.0;
-            }
-            double kick = boost * (1.0 - ramp);
-
-            Move(move, 1, 0, (duty * ramp) + kick);
-
-            delay(delaytime);
             Stop();
-        }
-        if(move==4)
-        {
-            if(i<t1)
-            {
-                delaytime = 50;
-            }
-            else
-            {
-                delaytime = 25;
-            }
-            double ramp = (micros() - c) / 150000;
-            if (ramp > 1.0)
-            {
-                ramp = 1.0;
-            }
-            double kick = boost * (1.0 - ramp);
-
-            Move(move, 1, 0, (duty * ramp) + kick);
-
-            delay(delaytime);
-            Stop();
+            b = false;
         }
     }
 }
@@ -1662,7 +1679,7 @@ void TranslateRobot(double dist, double duty, int move, int SCR, int debug) // S
 
         t = micros();
 
-        if (t - dt_1 > 1000000 && SCR >= 1)
+        if (t - dt_1 > 1000000 && SCR >= 1) // update screen every 1 second
         {
             UpdateSCR(SCR, (duty + adj), countL, countR, countoff);
             if (debug == 1)
@@ -1705,10 +1722,10 @@ void acuScan(double &ang, double &dist, bool debug) // Needs configuring
     TargetFound = false;
     while (TargetFound == false)
     {
-        for (int i = 0; i < 90 && TargetFound == false; i++)
+        for (int i = 15; i < 166 && TargetFound == false; i++)
         {
 
-            servowrite(35, i + angle_offset - 45, 1);
+            servowrite(35, i, 1);
 
             if (i == 0)
             {
@@ -1743,10 +1760,10 @@ void acuScan(double &ang, double &dist, bool debug) // Needs configuring
             Break(TargetFound,2);
         }
 
-        for (int i = 90; i > 0 && TargetFound == false; i--)
+        for (int i = 165; i > 14 && TargetFound == false; i--)
         {
 
-            servowrite(35, i + angle_offset - 45, 1);
+            servowrite(35, i, 1);
 
             if (i == 0)
             {
@@ -1811,7 +1828,7 @@ double relAngle(double ang, double exof, int reltype)
     }
 }
 
-void FollowUltra()
+void FollowUltra() // follow logic
 {
     double dist;
     double Target_Angle = 0;
@@ -1825,27 +1842,23 @@ void FollowUltra()
         {
             FoundTarget = true;
         }
-        else if (dist > 150) // State to rotate if no target found
-        {
-            TranslateRobot(75, 30, 3, 0, 0); // turn left 75 degrees
-        }
         else if (Target_Angle >= 80) // edge case on left side
         {
-            TranslateRobot(45, 30, 3, 0, 0); // turn left 45 degrees
+            TranslateRobot(35, 30, 3, 0, 0); // turn left 45 degrees
         }
         else if (Target_Angle <= 10) // edge case on right side
         {
-            TranslateRobot(45, 30, 4, 0, 0); // turn right 45 degrees
+            TranslateRobot(35, 30, 4, 0, 0); // turn right 45 degrees
         }
         else if (Target_Angle < 80 && Target_Angle > 10)
         {
             if (Target_Angle >= 55)
             {
-                TranslateRobot(relAngle(Target_Angle, 0, 0), 30, 3, 0, 0); // turn left x degrees
+                TranslateRobot(relAngle(0, Target_Angle, 0), 30, 3, 0, 0); // turn left x degrees
             }
             else if (Target_Angle <= 35)
             {
-                TranslateRobot(relAngle(Target_Angle, 0, 0), 30, 4, 0, 0); // turn right x degrees
+                TranslateRobot(relAngle(0, Target_Angle, 0), 30, 4, 0, 0); // turn right x degrees
             }
             else if (Target_Angle < 55 && Target_Angle > 35)
             {
